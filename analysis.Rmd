@@ -3,44 +3,39 @@ title: "HS19C2 - Cross-Selling in Banking"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+- Bereits vorhandene Services: Darlehen und Kredit-Kart
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+### Besprechung 16.10.
 
-```{r}
-# activate install if needed
-#install.packages("RPostgreSQL")
+#### Tabelle Account
 
-require("RPostgreSQL")
+- «date»: Eröffnungsdaten von Konten: 1993 bis und mit 1997 (5 Jahre)
+- «frequency»: Frequenz von Ausstellung der Kontoauszüge
 
-# define the database connection string
-DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
-DB_PORT = 5432
-DB_DBNAME = 'bank_db' # or 'warenkorb_db'
-DB_USERNAME = 'db_user' 
-DB_PASSWORD = 'db_user_pw' 
+#### Tabelle Client
+- Neue Spalte «gender» aus «birth_number» erstellen
+- Neue Spalte «birthdate» aus «birth_number» erstellen im Format YYYY-MM-DD. Achtung Daten bis 1997, sprich 00 = 1900
 
-# load the PostgreSQL driver
-drv <- dbDriver("PostgreSQL")
-# connect to the database
-con <- dbConnect(drv, dbname = DB_DBNAME,
-                 host = DB_HOST, port = DB_PORT,
-                 user = DB_USERNAME, password = DB_PASSWORD)
+#### Tabelle disp
+- Auffälligkeit: Identische «disp_id» und «client_id» bis «client_id» 8777 (Zeile 4987)
 
-# TODO
-#query <- paste0("SELECT * FROM sales_tbl WHERE date='", dt, "'")
-#query <- paste0("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES")
-query <- paste0("SELECT * FROM account")
-result <- dbGetQuery(con, query)
-print(result)
+#### Tabelle orders
+- Gewisse Zeilen enthalten kein «k_symbol»
+- Welche Einheit ist «amount»
+- Frequenz und Datum von Daueraufträge prüfen
 
-# close the connection (don't forget to cleanup)
-dbDisconnect(con)
-dbUnloadDriver(drv)
-```
+#### Tabelle trans
+- Gewisse Zeilen haben einen 0 «amount»
+- Es gibt null Werte bei «operation», «k_symbol», «bank» und «account»
+- Wenn «operation» null, scheint k_symbol «UROK» (Zinsgutschriften) zu sein
+- Heraussuchen wer fast keine Transaktionen hat (Tote Menschen)
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+#### Tabelle loans
+- «duration» ist wahrscheinlich in Monaten
+- «status» unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
+- Tabelle «loans» mit «trans» vergleichen. Werden Rückzahlungen in «trans» abgebildet?
+- Herausfinden, ob ein Account mehrere Loans hat
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+#### Tabelle district
+- Spalten sprechend benennen gemäss Beschreibung
+- district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen

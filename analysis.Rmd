@@ -3,39 +3,47 @@ title: "HS19C2 - Cross-Selling in Banking"
 output: html_notebook
 ---
 
+### Funktionssammlung
+
+```{r}
+mutate(data, geschlecht = ifelse(substr(birth_number,3,4) > 12, 'W', 'M'))
+```
+
+### Infos
 - Bereits vorhandene Services: Darlehen und Kredit-Kart
 
 ### Besprechung 16.10.
 
-#### Tabelle Account
-
+#### Tabelle account
 - «date»: Eröffnungsdaten von Konten: 1993 bis und mit 1997 (5 Jahre)
 - «frequency»: Frequenz von Ausstellung der Kontoauszüge
 
-#### Tabelle Client
+#### Tabelle client (Märki)
 - Neue Spalte «gender» aus «birth_number» erstellen
 - Neue Spalte «birthdate» aus «birth_number» erstellen im Format YYYY-MM-DD. Achtung Daten bis 1997, sprich 00 = 1900
 
-#### Tabelle disp
+#### Tabelle disp (Gehrig)
 - Auffälligkeit: Identische «disp_id» und «client_id» bis «client_id» 8777 (Zeile 4987)
 
-#### Tabelle orders
+#### Tabelle orders (Stähli)
 - Gewisse Zeilen enthalten kein «k_symbol»
 - Welche Einheit ist «amount»
 - Frequenz und Datum von Daueraufträge prüfen
 
-#### Tabelle trans
+#### Tabelle trans (Märki)
 - Gewisse Zeilen haben einen 0 «amount»
 - Es gibt null Werte bei «operation», «k_symbol», «bank» und «account»
 - Wenn «operation» null, scheint k_symbol «UROK» (Zinsgutschriften) zu sein
 - Heraussuchen wer fast keine Transaktionen hat (Tote Menschen)
 
-#### Tabelle loans
+#### Tabelle loans (Gehrig)
 - «duration» ist wahrscheinlich in Monaten
 - «status» unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
 - Tabelle «loans» mit «trans» vergleichen. Werden Rückzahlungen in «trans» abgebildet?
 - Herausfinden, ob ein Account mehrere Loans hat
 
-#### Tabelle district
+#### Tabelle card
+
+#### Tabelle district (Stähli)
 - Spalten sprechend benennen gemäss Beschreibung
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen

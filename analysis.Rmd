@@ -1,13 +1,19 @@
 ---
 title: "HS19C2 - Cross-Selling in Banking"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ### Funktionssammlung
 
 ```{r}
-mutate(data, geschlecht = ifelse(substr(birth_number,3,4) > 12, 'W', 'M'))
+#mutate(data, geschlecht = ifelse(substr(birth_number,3,4) > 12, 'W', 'M'))
 ```
+
+#### Erzeugung eines Inline-Chunks in R
+- Datum: `r date()`
 
 ### Infos
 - Bereits vorhandene Services: Darlehen und Kredit-Kart
@@ -28,7 +34,7 @@ mutate(data, geschlecht = ifelse(substr(birth_number,3,4) > 12, 'W', 'M'))
 #### Tabelle orders (Stähli)
 - Gewisse Zeilen enthalten kein «k_symbol»
 - Welche Einheit ist «amount»
-- Frequenz und Datum von Daueraufträge prüfen
+- Frequenz und Datum von Daueraufträge prüfen 
 
 #### Tabelle trans (Märki)
 - Gewisse Zeilen haben einen 0 «amount»
@@ -47,3 +53,5 @@ mutate(data, geschlecht = ifelse(substr(birth_number,3,4) > 12, 'W', 'M'))
 #### Tabelle district (Stähli)
 - Spalten sprechend benennen gemäss Beschreibung
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen
+
+

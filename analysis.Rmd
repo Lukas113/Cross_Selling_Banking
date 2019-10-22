@@ -6,6 +6,27 @@ output:
   pdf_document: default
 ---
 
+### SQL - Connection
+```{r}
+library("RPostgreSQL")
+
+# define the database connection string
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user' 
+DB_PASSWORD = 'db_user_pw' 
+
+# load the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+# connect to the database
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+
+```
+
+
 ### Funktionssammlung
 
 ```{r}
@@ -14,6 +35,7 @@ output:
 
 #### Erzeugung eines Inline-Chunks in R
 - Datum: `r date()`
+
 
 ### Infos
 - Bereits vorhandene Services: Darlehen und Kredit-Kart
@@ -54,4 +76,23 @@ output:
 - Spalten sprechend benennen gemäss Beschreibung
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen
 
+```{sql connection=con, output.var = "district"}
+SELECT a1 as district_code, a2 as district_name,
+a3 as region, a4 as no_of_inhabitants, a5 as municipalities_u499,
+a6 as municipalties_500_1999, a7 as municipalties_2000_9999, a8 as municipalties_o9999,
+a9 as no_of_cities, a10 as ratio_urban_inhabitants, a11 as avg_salary,
+a12 as unemploymt_rate95, a13 as unemploymt_rate96, a14 as no_enterpreneurs_per_1000,
+a15 as commited_crimes95, a16 as commited_crimes96 
+from district
+```
+
+```{r}
+#str(district)
+```
+
+#### Close SQL - Connection
+```{r}
+dbDisconnect(con)
+dbUnloadDriver(drv)
+```
 

@@ -55,7 +55,9 @@ con <- dbConnect(drv, dbname = DB_DBNAME,
 
 #### Tabelle orders (Stähli)
 - Gewisse Zeilen enthalten kein «k_symbol»
+  - Unsaubere Klassifizierung -> Zuweisung der Kategorie unbekannt
 - Welche Einheit ist «amount»
+  - Die Währung ist die Tschechische Krone
 - Frequenz und Datum von Daueraufträge prüfen 
 
 #### Tabelle trans (Märki)

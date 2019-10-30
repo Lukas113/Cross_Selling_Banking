@@ -1,0 +1,38 @@
+---
+title: "HS19C2 - Cross-Selling in Banking"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+Notebook erstellt am: `r date()`
+
+## Besprechungen
+
+### 30.10.2019
+#### Protokoll
+- Lu macht File mit datebank, pro User.
+- Gehrig fragt inwiefern Attributbeschreibung wichtig ist. Und er fragt nach null Wert.
+- Regel definieren für nicht Vorhandene Daten / Zellen in Tabelle trans.
+
+## Aktuelle Hypothesen / Fragen:
+- Geben Goldkartenuser mehr aus / höhere transaktionen / mehrere Transaktionen als junior oder classic?
+- Was sind gute / schlechte Kunden pro Kartentyp?
+- Welchen Kunden ohne Karten drehen wir welche Karte an?
+- Hat district Einfluss auf Kartentyp?
+- Kosten Daueraufträge
+- Loans
+
+## Notebooks
+
+### Notebook Gehrig
+```{r child = 'gehrig/analysis_gehrig.Rmd'}
+```
+
+### Notebook Stähli
+```{r child = 'staehli/analysis_staehli.Rmd'}
+```
+
+### Notebook Märki
+```{r child = 'maerki/analysis_maerki.Rmd'}
+```

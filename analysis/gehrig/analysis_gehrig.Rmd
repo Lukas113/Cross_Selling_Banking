@@ -1,0 +1,15 @@
+```{r child = '../header.Rmd'}
+```
+
+#### Tabelle disp (Gehrig)
+- Auffälligkeit: Identische «disp_id» und «client_id» bis «client_id» 8777 (Zeile 4987)
+- Keine doppelte Clients vorhanden. Ist disp Tabelle nötig? Evtl. immer neuer Client eröffnet worden?
+
+#### Tabelle loans (Gehrig)
+- «duration» ist wahrscheinlich in Monaten
+- «status» unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
+- Tabelle «loans» mit «trans» vergleichen. Werden Rückzahlungen in «trans» abgebildet?
+- Herausfinden, ob ein Account mehrere Loans hat
+
+```{r child = '../footer.Rmd'}
+```

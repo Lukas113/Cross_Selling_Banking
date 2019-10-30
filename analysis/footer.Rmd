@@ -1,0 +1,4 @@
+```{r include=FALSE}
+dbDisconnect(con)
+dbUnloadDriver(drv)
+```

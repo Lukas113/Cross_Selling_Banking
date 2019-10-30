@@ -72,6 +72,22 @@ print(dataClient)
   - Die Währung ist die Tschechische Krone
 - Frequenz und Datum von Daueraufträge prüfen 
 
+```{sql connection=con, output.var = "permanent_orders"}
+SELECT trans.trans_id, trans.date, orders.orders_id, orders.account_id, orders.account_to, orders.amount,  
+CASE 
+	WHEN orders.k_symbol = 'SIPO' THEN 'household' 
+	WHEN orders.k_symbol = 'LEASING' THEN 'leasing'
+	WHEN orders.k_symbol = 'UVER' THEN 'loan payment'
+	WHEN orders.k_symbol = 'POJISTNE' THEN 'insurrance payment'
+	WHEN orders.k_symbol = ' ' THEN 'NA'
+END
+FROM orders
+INNER JOIN trans ON orders.account_id = trans.account_id
+WHERE orders.amount = trans.amount 
+ORDER BY account_id, orders_id, date
+```
+
+
 #### Tabelle trans (Märki)
 - Gewisse Zeilen haben einen 0 «amount»
 - Es gibt null Werte bei «operation», «k_symbol», «bank» und «account»

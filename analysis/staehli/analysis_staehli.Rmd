@@ -1,12 +1,32 @@
 ```{r child = '../header.Rmd'}
 ```
 
+```{r}
+library("RPostgreSQL")
+library(tidyverse)
+# define the database connection string
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user' 
+DB_PASSWORD = 'db_user_pw' 
+
+# load the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+# connect to the database
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+```
+
+
 #### Tabelle orders (Stähli)
 - Gewisse Zeilen enthalten kein «k_symbol»
   - Unsaubere Klassifizierung -> Zuweisung der Kategorie unbekannt
 - Welche Einheit ist «amount»
   - Die Währung ist die Tschechische Krone
 - Frequenz und Datum von Daueraufträge prüfen 
+
 
 ```{sql connection=con, output.var = "permanent_orders"}
 SELECT trans.trans_id, trans.date, orders.orders_id, orders.account_id, orders.account_to, orders.amount,  
@@ -23,6 +43,22 @@ WHERE orders.amount = trans.amount
 ORDER BY account_id, orders_id, date
 ```
 
+#### Average time of permanent orders
+
+```{r}
+
+# LAG Function zum Differenz der Spalten ausrechnen
+difference_in_time <- permanent_orders %>%
+  group_by(orders_id) %>%
+  mutate(dif_in_days = date - lag(date)) 
+  
+head(difference_in_time)
+average_time_p_orders <- mean(difference_in_time$dif_in_days, na.rm = TRUE) #Calculation of average time (30d)
+
+```
+Calculation of the average time of permanent orders. result is `r average_time_p_orders`
+
+
 #### Tabelle district (Stähli)
 - Spalten sprechend benennen gemäss Beschreibung
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen
@@ -37,9 +73,182 @@ a15 as commited_crimes95, a16 as commited_crimes96
 from district
 ```
 
+### Bearbeitung eigener Hypothesen
+
+- Kunden mit einer GOLD Karte transferieren mehr und haben mehr Geld.
+  -Goldkartennutzer transferieren mehr im Bezug auf einen Kunden, doch im Bezug aufs ganze Handelsvolumen machen die Classic-User das Rennen
 ```{r}
-#str(district)
+library(RPostgreSQL)
+library(tidyverse)
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user' 
+DB_PASSWORD = 'db_user_pw' 
+
+# load the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+# connect to the database
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+
+cards_trans <- dbGetQuery(con,"SELECT card.card_id, card.type AS card_type , disp.client_id, disp.type AS account_type,
+disp.account_id, trans.date, trans.amount, ROUND(trans.balance) AS balance,
+CASE 
+	WHEN trans.type = 'PRIJEM' THEN 'credit'
+	WHEN trans.type = 'VYDAJ' THEN 	'withdrawal'
+END AS transaction_type , 
+CASE 
+	WHEN trans.operation = 'VYBER KARTOU' THEN 'credit card withdrawal'
+	WHEN trans.operation = 'VKLAD' THEN 'credit in cash'
+	WHEN trans.operation = 'PREVOD Z UCTU' THEN 'collection of other bank'
+	WHEN trans.operation = 'VYBER' THEN 'withdrawal in cash'
+	WHEN trans.operation = 'PREVOD NA UCET' THEN 'remittance to another bank' 
+END AS transaction_operation FROM card 
+LEFT JOIN disp ON card.disp_id = disp.disp_id
+LEFT JOIN trans ON disp.account_id = trans.account_id
+ORDER BY trans.account_id 
+")
+head(cards_trans)
+
+# filter all transaction to a time-frame of one year
+card_trans_lastyear <- filter(cards_trans, between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
+
+# Plot amount of payments and operation type for card types
+p_trans_op <- ggplot(data = card_trans_lastyear, mapping = aes(x = transaction_operation, fill = card_type) )  + geom_bar(alpha = 1/2, position = "identity") + coord_flip() + labs(title = "All transaction in one year with operation type")
+print(p_trans_op)
+
+# plot types of transactions types regarding to card type  
+p_trans_type <- ggplot(data = card_trans_lastyear, mapping = aes(x = transaction_type, fill = card_type)) +
+  geom_bar(alpha = 1/4, position = "dodge") + coord_flip() + labs(title = "All transaction in one year with tranaction_type")
+print(p_trans_type)
+
+#filter rows acc. card_type for 1 yr.
+#print(max(gold_users$date))
+gold_users <- filter(cards_trans, card_type == "gold" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
+classic_users <- filter(cards_trans, card_type == "classic" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
+junior_users <- filter(cards_trans, card_type == "junior" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
+
+#Alle Transaktionen runtergebrochen auf ein User
+gold_one_user <- round(sum(gold_users$amount) / nrow(gold_users), 0)
+classic_one_user <- round(sum(classic_users$amount) / nrow(classic_users),0)
+junior_one_user <- round(sum(junior_users$amount) / nrow(junior_users),0)
+
+one_user <- data.frame("user_type" = c("gold","classic","junior"), "amt_per_transaction" = c(gold_one_user, classic_one_user, junior_one_user))
+
+head(one_user)
+
+ggplot(data = one_user, aes(x = user_type, y = amt_per_transaction, fill = user_type)) + geom_col(alpha = 1/2, position = "identity") + coord_flip() + labs(title = "Transactions in relation to one user")
+    
 ```
+
+
+- Kunden, die einen Kredit haben, und den Status nicht bezahlt, sind schlechte Kunden.
+  - Meiste Kunden hatten gar nie einen Kredit
+
+```{r}
+library(RPostgreSQL)
+library(tidyverse)
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user' 
+DB_PASSWORD = 'db_user_pw' 
+
+# load the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+# connect to the database
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+
+accounts_loans <- dbGetQuery(con,"SELECT account.account_id, account.district_id,
+CASE 
+	WHEN account.frequency = 'POPLATEK MESICNE' THEN 'monthly'
+	WHEN account.frequency = 'POPLATEK TYDNE' THEN 'weekly'
+	WHEN account.frequency = 'POPLATEK PO OBRATU' THEN 'after transaction' 
+END AS account_issuance,
+account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
+loan.payments, 
+CASE 
+	WHEN loan.status = 'A' THEN 'finished, OK'
+	WHEN loan.status = 'B' THEN 'finished, unpayed'
+	WHEN loan.status = 'C' THEN 'running, OK'
+	WHEN loan.status = 'D' THEN 'running, in debt'
+END AS payment_status
+FROM account 
+LEFT JOIN loan ON account.account_id = loan.account_id
+GROUP BY account.account_id, loan.loan_id
+ORDER BY account.date")
+
+head(accounts_loans)
+
+#Most accounts didn't ever have loan
+ggplot(accounts_loans, aes(x = payment_status)) + geom_bar(alpha = 3/4, position = "identity") + coord_flip()
+
+#Check if null values not in loan table
+accounts_loans %>%
+  filter(account_id == 0 | district_id == 0 | date_account_creation == 0) %>%
+  view() 
+
+# filter dataframe not empty values and rename date column 
+accounts_with_loans <- na.omit(accounts_loans) %>%
+  rename(date_of_loan = date)
+
+view(accounts_with_loans)
+
+ggplot(accounts_with_loans, aes(x = payment_status)) + geom_bar() + coord_flip()
+
+ggplot(accounts_with_loans, aes(x = date_of_loan, y = loan_amount, color = payment_status)) + 
+  geom_point(binwidth=15) + geom_smooth(method='lm',binwidth=15) +
+  scale_x_date(date_breaks = "year", date_labels = "%Y")
+
+str(accounts_with_loans)
+
+#calculate new row with count values for plotting
+accounts_with_loans_count <- as.data.frame(transmute(accounts_with_loans, 
+                                                     loan_amount, loan_id)) %>% arrange(loan_id)
+
+str(accounts_with_loans_count)
+
+colMeans(accounts_with_loans_count[1], na.rm = FALSE)
+
+library(DescTools)
+
+ggplot(accounts_with_loans,aes(x = date_of_loan)) +
+  geom_histogram(binwidth=15, fill="#69b3a2", color="#e7ecef", alpha=0.9) +
+  labs(title = "Amount of loans at time") +
+  scale_x_date(date_breaks = "year", date_labels = "%Y")
+
+
+
+
+
+
+
+
+```
+
+
+
+
+- KOnten mit einem hohen Kontostand sind gute Kunden.
+
+- Kunden die aus einem gewissen Bezirk stammen, haben mehr oder weniger Geld. Es hat in gewissen Distrikten mehr Gold-Card Kunden.
+
+- Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine Kredite stets zurück, macht häufig Gebrauch von der Kreditkarte
+
+- Kunden, die ein Haus haben, haben mehr Geld.
+
+
+
+
+
+```{r}
+
+```
+
 
 ```{r child = '../footer.Rmd'}
 ```

@@ -30,6 +30,10 @@ Notebook erstellt am: `r date()`
 ```
 
 ### Notebook Stähli
+- Kunden mit einer GOLD Karte transferieren mehr und haben mehr Geld.
+  -Goldkartennutzer transferieren mehr im Bezug auf einen Kunden, doch im Bezug aufs ganze Handelsvolumen machen die Classic-User das Rennen
+
+
 ```{r child = 'staehli/analysis_staehli.Rmd'}
 ```
 

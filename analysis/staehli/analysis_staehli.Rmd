@@ -198,12 +198,13 @@ accounts_with_loans <- na.omit(accounts_loans) %>%
 
 view(accounts_with_loans)
 
-ggplot(accounts_with_loans, aes(x = payment_status)) + geom_bar() + coord_flip()
+ggplot(accounts_with_loans, aes(x = payment_status)) + geom_bar() + coord_flip() 
+  
 
 ggplot(accounts_with_loans, aes(x = date_of_loan, y = loan_amount, color = payment_status)) + 
   geom_point(binwidth=15) + geom_smooth(method='lm',binwidth=15) +
-  scale_x_date(date_breaks = "year", date_labels = "%Y")
-
+  scale_x_date(date_breaks = "year", date_labels = "%Y") 
+  
 str(accounts_with_loans)
 
 #calculate new row with count values for plotting
@@ -222,20 +223,125 @@ ggplot(accounts_with_loans,aes(x = date_of_loan)) +
   scale_x_date(date_breaks = "year", date_labels = "%Y")
 
 
+```
 
 
+  - Aus District 1 (Prag) werden am meisten loans bezogen
+  - Höchste Outliers ebenfalls in D1
+  
+```{r}
+#loan amount depending on amount
+plot_1_loans_district <-  na.omit(filter(accounts_with_loans, between(district_id, 0, 40)))
+plot_2_loans_district <- na.omit(filter(accounts_with_loans, 
+                                        between(district_id,
+                                                41,max(accounts_with_loans$district_id))))
 
+#Plot: where are the most loans comming from
+ggplot(accounts_with_loans, aes(x = district_id)) +
+  geom_bar()
 
+# Plot all districts with boxplot
+ggplot(accounts_with_loans, aes(district_id, loan_amount, group = district_id)) +
+  geom_boxplot() +
+  geom_line(data = accounts_with_loans, aes(y = mean(loan_amount), x = district_id)) +
+   xlim(1,78) + ylim(0,600000) + scale_x_continuous(breaks = c(1:77)) 
+
+# More accurate plots regarding to upper plot
+ggplot(plot_1_loans_district, aes(x = district_id, 
+                           y = loan_amount, group = district_id)) +
+  geom_boxplot() + scale_x_continuous(breaks = plot_1_loans_district$district_id) + 
+  labs(title = "Districts 1 to 40")
+
+ggplot(plot_2_loans_district, aes(x = district_id, 
+                           y = loan_amount, group = district_id)) +
+  geom_boxplot() + scale_x_continuous(breaks = plot_2_loans_district$district_id) +
+  labs(title = "Districts 41 to 77")
 
 
 ```
 
+### Können Kartennutzer nach der Kartenklassifizierung einem District zugeordnet werden?
+Beobachtungen:
+Generell:
+- D50 Anteile ausgeglichen
+- Verhältnisse District 25/29 passen nicht ins Muster
 
+Classic:
+- Anteil verhältnismässig hoch: D31
+- tief: D25, D56
+- Fast überall am meisten vorhanden
+- District 25 fällt sogar unter Goldanteil und Junior Anteil
+- D32-36 starker seitwärtstrend
 
+Gold:
+- Anteil verhältnismässig hoch: 76, D69
+- Tief: D54, D68, 
+- Anteile meist gering
+- District 29(höher als Classic), 69 auffällig hoch 
+
+Junior:
+- Anteil verhältnismässig hoch: D9, D2, D18, D59(höher als Classic), D69
+- Tief: D54, D68
+
+```{r}
+
+library(RPostgreSQL)
+library(tidyverse)
+
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user' 
+DB_PASSWORD = 'db_user_pw' 
+
+# load the PostgreSQL driver
+drv <- dbDriver("PostgreSQL")
+# connect to the database
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+
+client_card_districts <- dbGetQuery(con,"SELECT card.type AS card_type, disp.client_id, client.district_id,
+district.a2 AS district_name, district.a11 AS district_salary, district.a4 AS no_inhabitants FROM card
+FULL JOIN disp ON card.disp_id = disp.disp_id
+FULL JOIN client ON disp.client_id = client.client_id
+FULL JOIN district ON client.district_id = district.a1
+ORDER BY card.type, disp.client_id")
+
+head(client_card_districts)
+
+# Neue Tabelle gruppiert mit district_i und anzahl karten gesamt
+ggplot(clients_with_card, aes(x = district_id, y = cards_per_district)) +
+  geom_col(alpha = 1/2) +  xlim(1,77) +  scale_x_continuous(breaks = 1:77) 
+
+#Amount of cards in district 
+ggplot(client_card_districts, aes(x = district_id, color = card_type)) +
+  geom_freqpoly(binwidth = 1, alpha = 3/4) + labs(title = "Amount of customers in districts" ) +
+  scale_x_continuous(breaks = 1:77) + coord_cartesian(xlim = 1:77, ylim = 1:100)  #Richtig skalieren!!
+ 
+
+#Anzahl Karten runtergebrochen auf einen Kartennutzer
+card_district_one_usr <- client_card_districts %>%
+  select(district_id, card_type, no_inhabitants) %>%
+  group_by(district_id, card_type, no_inhabitants) %>%
+  summarise(number_of_cards = n()) %>% 
+  mutate(no_cards_per_inhabitant = round((number_of_cards / no_inhabitants)*1000, 3)) %>% 
+  filter(card_type != FALSE) #unbekannte Zellenwerte card_type nicht miteinbez. #%>% view()
+
+#Plot Karten aller User im Bezug auf einen Distrikt
+ggplot(card_district_one_usr, aes(x = district_id, y = no_cards_per_inhabitant, color = card_type)) +
+  geom_line(alpha = 3/4) + scale_x_continuous(breaks= 1:77)+ 
+  labs(title = "Card_types per head") + xlab(label = "districts") + 
+  coord_cartesian(xlim = 1:77, ylim = range(0,0.25,0.1)) #zoom in 
+         
+
+```
+
+Anteile 
 
 - KOnten mit einem hohen Kontostand sind gute Kunden.
 
-- Kunden die aus einem gewissen Bezirk stammen, haben mehr oder weniger Geld. Es hat in gewissen Distrikten mehr Gold-Card Kunden.
+
 
 - Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine Kredite stets zurück, macht häufig Gebrauch von der Kreditkarte
 

@@ -7,7 +7,7 @@
 
 - Stichtag Alter: 31.12.1998
 - Berechnung von Alter könnte man schöner machen, indem man direkt die birthdate Spalte benutzt (Falls dies möglich ist)
-```{r}
+```{r echo=FALSE}
 dataClient = dbGetQuery(con, "SELECT *,
 	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
 		'f'
@@ -22,8 +22,31 @@ dataClient = dbGetQuery(con, "SELECT *,
 	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age
 FROM client LIMIT 10")
 
-print(dataClient)
+head(dataClient)
 ```
+
+```{r echo=FALSE}
+dataGender = dbGetQuery(con, "SELECT
+	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'f' ELSE 'm' END as gender,
+	count(CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'f' ELSE 'm' END)
+FROM client
+group by gender")
+
+head(dataGender)
+```
+Die Verteilung der Frauen und Männer ist repräsentativ.
+
+```{r echo=FALSE}
+dataAge = dbGetQuery(con, "SELECT
+	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
+	count(EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)))
+FROM client
+group by age")
+library(ggplot2)
+ggplot(data = dataAge) + 
+  geom_point(mapping = aes(x = count, y = age))
+```
+
 
 #### Tabelle trans (Märki)
 - Gewisse Zeilen haben einen 0 «amount»

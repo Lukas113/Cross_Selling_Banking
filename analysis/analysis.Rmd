@@ -19,7 +19,7 @@ Notebook erstellt am: `r date()`
 - Geben Goldkartenuser mehr aus / höhere transaktionen / mehrere Transaktionen als junior oder classic?
 - Was sind gute / schlechte Kunden pro Kartentyp?
 - Welchen Kunden ohne Karten drehen wir welche Karte an?
-- Hat district Einfluss auf Kartentyp?
+
 - Kosten Daueraufträge
 - Loans
 
@@ -30,7 +30,30 @@ Notebook erstellt am: `r date()`
 ```
 
 ### Notebook Stähli
-- Kunden mit einer GOLD Karte transferieren mehr und haben mehr Geld.
+
+- Hat district Einfluss auf Kartentyp?
+Beobachtungen:
+Generell:
+  - D50 Anteile ausgeglichen
+  - Verhältnisse District 25/29 passen nicht ins Muster
+
+Classic:
+  - Anteil verhältnismässig hoch: D31
+  - tief: D25, D56
+  - Fast überall am meisten vorhanden
+  - Auffälligkeit D25 fällt sogar unter Goldanteil und Junior Anteil
+  - D32-36 starker seitwärtstrend
+
+Gold:
+  - Anteil verhältnismässig hoch: 76, D69
+  - Tief: D54, D68, 
+  - Anteile meist gering
+  - District 29(höher als Classic), 69 auffällig hoch 
+
+Junior:
+  - Anteil verhältnismässig hoch: D9, D2, D18, D59(höher als Classic), D69
+  - Tief: D54, D68
+  - Kunden mit einer GOLD Karte transferieren mehr und haben mehr Geld.
   -Goldkartennutzer transferieren mehr im Bezug auf einen Kunden, doch im Bezug aufs ganze Handelsvolumen machen die Classic-User das Rennen
 
 

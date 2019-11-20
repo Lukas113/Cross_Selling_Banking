@@ -215,35 +215,47 @@ balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALS
   return(bal_grw)
 }
 
-customer_balance_change <- function(trans_frame, with_initial_balance = FALSE, starting_date = lowest_date, end_date = highest_date){
-  cust_bal_ch <- trans_frame %>%
+customer_balance_change_estimation <- function(trans_frame, without_initial_balance = FALSE, min_date = lowest_date, max_date = highest_date){
+  cust_bal_ch <- trans_frame
+  
+  if (without_initial_balance){#filter opening balance if one is interested just in the estimated income
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(date != min(date))
+  }
+  
+  cust_bal_ch <- cust_bal_ch %>%
+    dplyr::filter(date >= min_date & date <= max_date) %>%
     dplyr::group_by(account_id, type) %>%
-    dplyr::summarise(balance_delta = sum(balance))
+    dplyr::summarise(balance_change = sum(amount))
+  
+  cust_bal_ch$balance_delta <- (as.numeric(unlist(by(cust_bal_ch$balance_change, cust_bal_ch$account_id, balance_delta)))*-1)
   
   return(cust_bal_ch)
 }
 
-balance_growth_end_of_years(trans_corrected)
 balance_account(trans_corrected)
-customer_balance_change(trans_corrected)
+customer_balance_change_estimation(trans_frame = trans_corrected, without_initial_balance = TRUE)
 ```
+
+
 ```{r}
 t <- trans %>%
-  dplyr::arrange(account_id, date) %>%
+  dplyr::arrange(account_id, date, desc(trans_id)) %>%
   dplyr::group_by(account_id) %>%
   dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
-  dplyr::filter(type == 'VYDAJ') %>%
-  dplyr::filter(balance_diff >= 0)
+  dplyr::filter(round2(abs(balance_diff), 0) == amount) %>% #ensures to just consider 100% correct calculated balance_diff
+  dplyr::filter(type == 'PRIJEM') %>%
+  dplyr::filter(balance_diff <= 0)
   
 t
 ```
 
+
+
 ```{r}
-o <- trans %>%
-  dplyr::arrange(account_id, date) %>%
-  dplyr::group_by(account_id) %>%
-  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
-  dplyr::filter(operation == 'VYBER KARTOU') %>%
+o <- t %>%
+  dplyr::filter(operation == 'VYBER') %>%
   dplyr::filter(balance_diff >= 0)
   
 o

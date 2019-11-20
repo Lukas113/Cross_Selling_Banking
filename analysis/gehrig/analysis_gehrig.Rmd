@@ -231,9 +231,9 @@ customer_balance_change(trans_corrected)
 t <- trans %>%
   dplyr::arrange(account_id, date) %>%
   dplyr::group_by(account_id) %>%
-  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) #%>%
-  #dplyr::filter(type == 'VYDAJ') %>%
-  #dplyr::filter(balance_diff >= 0)
+  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
+  dplyr::filter(type == 'VYDAJ') %>%
+  dplyr::filter(balance_diff >= 0)
   
 t
 ```
@@ -243,8 +243,8 @@ o <- trans %>%
   dplyr::arrange(account_id, date) %>%
   dplyr::group_by(account_id) %>%
   dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
-  dplyr::filter(k_symbol == 'UROK') %>%
-  dplyr::filter(balance_diff <= 0)
+  dplyr::filter(operation == 'VYBER KARTOU') %>%
+  dplyr::filter(balance_diff >= 0)
   
 o
 ```

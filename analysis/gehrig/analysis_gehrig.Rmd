@@ -1,15 +1,283 @@
+
+```{r echo = FALSE}
+library(tidyverse)
+library(RPostgreSQL)
+source('../helpers/transformation.R')
+```
+
 ```{r child = '../header.Rmd'}
 ```
 
 #### Tabelle disp (Gehrig)
-- Auffälligkeit: Identische «disp_id» und «client_id» bis «client_id» 8777 (Zeile 4987)
+- Auffälligkeit: Identische "disp_id" und "client_id" bis "client_id" 8777 (Zeile 4987)
+  &rarr; 1 zu n Verbindung von client zu account, keine Schwierigkeiten bezüglich Datenabfrage
+  
 - Keine doppelte Clients vorhanden. Ist disp Tabelle nötig? Evtl. immer neuer Client eröffnet worden?
+  &rarr; Disp Tabelle ist streng genommen nicht nötig, da von client zu account eine 1 zu n Verbindung ist
 
 #### Tabelle loans (Gehrig)
-- «duration» ist wahrscheinlich in Monaten
-- «status» unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
-- Tabelle «loans» mit «trans» vergleichen. Werden Rückzahlungen in «trans» abgebildet?
-- Herausfinden, ob ein Account mehrere Loans hat
+- "duration" ist wahrscheinlich in Monaten
+  &rarr; Ja, ist in Monaten
+  
+- "status" unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
+
+- Tabelle "loans" mit "trans" vergleichen. Werden Rückzahlungen in "trans" abgebildet?
+  &rarr; Ja, Rückzahlungen werden in "trans" abgebildet ('UVER')
+  
+- Herausfinden, ob ein account mehrere Loans hat
+  &rarr; Nein, kein account hatte jemals mehr als eine loan
+
+```{r echo = FALSE}
+load(file = '../objects/account.rda')
+load(file = '../objects/card.rda')
+load(file = '../objects/client.rda')
+load(file = '../objects/disp.rda')
+load(file = '../objects/district.rda')
+load(file = '../objects/loan.rda')
+load(file = '../objects/orders.rda')
+load(file = '../objects/trans.rda')
+```
+
+```{r echo = TRUE}
+lowest_date <- as.Date('1993-01-01')
+lowest_year <- 1993
+highest_date <- as.Date('1998-12-31')
+highest_year <- 1998
+
+beginning_date <- function(year){
+  return(as.Date(paste0(year, '-01-01')))
+}
+
+ending_date <- function(year){
+  return(as.Date(paste0(year, '-12-31')))
+}
+```
+
+
+#### Analyse fehlende Werte "trans"
+
+- x_1 = k_symbol(' '), bank('NA'), account('0'), operation('VYBER'): Barkredit (n=616)
+- x_2 = k_symbol(' '), operation('PREVOD NA UCET'): Überweisung an eine andere Bank (n=52817)
+
+- x_3 = k_symbol('NA'), bank('NA'), account('NA'), operation('VKLAD'): Geldeinzahlung des Kunden an die Bank (n=156743)
+- x_4 = k_symbol('NA'), bank('NA'), account('NA'), operation('VYBER'): Barkredit der Bank an den Kunden (n=263664)
+- x_5 = k_symbol('NA'), bank('NA'), account('0'), operation('VYBER KARTOU'): Geldauszahlung Kreditkarte (n=8036)
+
+- x_6 = k_symbol('NA'), operation('PREVOD NA UCET'): Überweisung an eine andere Bank (n=8155)
+- x_7 = k_symbol('NA'), operation('PREVOD Z UCTU'): Überweisung von einer anderen Bank (n=34888)
+
+- x_8 = k_symbol('UROK'), bank('NA'), account('NA'), operation('NA'): Zinsgutschrift der Bank an den Kunden (n=183114)
+- x_9 = k_symbol('SLUZBY'), bank('NA'), account('NA'), operation('VYBER'): Barkredit für das bezahlen einer Rechnung (n=155832)
+- x_10 = k_symbol('SANKC. UROK'), bank('NA'), account('NA'), operation('VYBER'): Negativzinsen, Gutschrift für die Bank (n=1577)
+- x_11 = k_symbol('UVER'), bank('NA'), account('NA'), operation('PREVOD NA UCET'): Geldüberweisung an eine UNBEKANNTE Bank (n=1)
+- x_12 = k_symbol('SIPO'), bank('NA'), account('0'), operation('VYBER'): Barkredit für Haushalt (n=2811)
+- x_13 = k_symbol('POJISTNE'), bank('NA'), account('0'), operation('VYBER'): Barkredit für Versicherungsrechnung (n=23)
+
+
+```{r echo = TRUE}
+analyze_na <- function(frame){
+  k_whitespace <- trans %>% dplyr::filter(k_symbol == ' ')
+  x_1 <- k_whitespace %>% dplyr::filter(is.na(bank) & account == 0) %>% dplyr::count()
+  x_2 <- k_whitespace %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  
+  k_na <- trans %>% dplyr::filter(is.na(k_symbol))
+  k_bank_na <- k_na %>% dplyr::filter(is.na(bank))
+  x_3 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VKLAD') %>% dplyr::count()
+  x_4 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VYBER') %>% dplyr::count()
+  x_5 <- k_bank_na %>% dplyr::filter(account == 0 & operation == 'VYBER KARTOU') %>% dplyr::count()
+  
+  x_6 <- k_na %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_7 <- k_na %>% dplyr::filter(operation == 'PREVOD Z UCTU') %>% dplyr::count()
+  
+  bank_na <- trans %>% dplyr::filter(is.na(bank))
+  bank_account_na <- bank_na %>% dplyr::filter(is.na(account))
+  x_8 <- bank_account_na %>% dplyr::filter(k_symbol == 'UROK' & is.na(operation)) %>% dplyr::count()
+  x_9 <- bank_account_na %>% dplyr::filter(k_symbol == 'SLUZBY' & operation == 'VYBER') %>% dplyr::count()
+  x_10 <- bank_account_na %>% dplyr::filter(k_symbol == 'SANKC. UROK' & operation == 'VYBER') %>% dplyr::count()
+  x_11 <- bank_account_na %>% dplyr::filter(k_symbol == 'UVER' & operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_12 <- bank_na %>% dplyr::filter(k_symbol == 'SIPO' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  x_13 <- bank_na %>% dplyr::filter(k_symbol == 'POJISTNE' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  
+  print(paste('x_1:', x_1$n))
+  print(paste('x_2:', x_2$n))
+  print(paste('x_3:', x_3$n))
+  print(paste('x_4:', x_4$n))
+  print(paste('x_5:', x_5$n))
+  print(paste('x_6:', x_6$n))
+  print(paste('x_7:', x_7$n))
+  print(paste('x_8:', x_8$n))
+  print(paste('x_9:', x_9$n))
+  print(paste('x_10:', x_10$n))
+  print(paste('x_11:', x_11$n))
+  print(paste('x_12:', x_12$n))
+  print(paste('x_13:', x_13$n))
+  
+}
+
+analyze_na(trans)
+```
+
+#### Trans 'type'
+Der 'type' der trans hat laut Beschreibung lediglich:
+- "PRIJEM" stands for credit 
+- "VYDAJ" stands for withdrawal
+Jedoch ist in der Datenbank ein dritter 'type' "VYBER" (n=16666) vorhanden
+```{r echo = TRUE}
+trans_type_vyber <- function(trans_frame){
+  ggplot2::ggplot(data = trans_frame) + 
+    ggplot2::geom_bar(mapping = aes(x = type, fill = type))
+}
+
+trans_type_vyber(trans)
+```
+
+#### Trans correction
+```{r echo = TRUE}
+trans_corrected <- corr_trans(trans)
+```
+
+
+#### Account & Loan
+
+Hier wird gezeigt, dass jeder account nie mehr als eine loan besessen hat.
+```{r echo = TRUE}
+account_loan_check <- function(account_frame, loan_frame){
+  account_loan <- dplyr::inner_join(account_frame, loan_frame, by = 'account_id') %>%
+    dplyr::count(account_id) %>%
+    dplyr::select(n)
+  return(base::summary.data.frame(account_loan))
+}
+
+account_loan_check(account, loan)
+```
+
+#### Vermögen pro Account
+
+```{r echo = TRUE}
+balance_account <- function(trans_frame, min_date = lowest_date, max_date = highest_date){
+  min_date <- as.Date(min_date)
+  max_date <- as.Date(max_date)
+  account_balance <- trans_frame %>% 
+    dplyr::filter(date >= min_date & date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(date == max(date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id)
+  return(account_balance)
+}
+
+balance_distribution <- function(trans_frame, min_date = lowest_date, max_date = highest_date, binwidth = 2000){
+  balances <- balance_account(trans_frame, min_date, max_date)
+  ggplot2::ggplot(data = balances, aes(balance)) + 
+  ggplot2::geom_density(aes(y =..density..), fill = 'red', alpha = 0.85) +
+  ggplot2::scale_x_continuous(labels = scales::comma) +
+  ggplot2::labs(title = paste0('Account Balance Distribution ', max_date), x = 'balance', y = 'density')
+}
+
+b_acc <- balance_account(trans)
+base::summary(b_acc$balance)
+
+balance_dist <- balance_distribution(trans_corrected)
+balance_dist
+```
+
+#### Vermögenverhältnisse der Bank
+```{r echo = TRUE}
+for (year in lowest_year:highest_year) {
+  b_dist <- balance_distribution(trans, max_date = ending_date(year))
+  print(b_dist)
+}
+```
+
+#### Jährlicher Vermögensveränderung
+```{r echo = TRUE}
+balance_delta <- function(balances){
+  return(c(NA, diff(balances)))
+}
+
+balance_delta_initial <- function(balances){
+  return(c(balances[1], diff(balances)))
+}
+
+balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALSE){
+  bal_grw <- trans_frame %>%
+    dplyr::mutate(year = format(date, '%Y')) %>%
+    dplyr::group_by(account_id, year) %>%
+    dplyr::filter(date == max(date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id, date)
+   
+  if (with_initial_balance){
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta_initial)))
+  }else{
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta)))
+  }
+  return(bal_grw)
+}
+
+customer_balance_change <- function(trans_frame, with_initial_balance = FALSE, starting_date = lowest_date, end_date = highest_date){
+  cust_bal_ch <- trans_frame %>%
+    dplyr::group_by(account_id, type) %>%
+    dplyr::summarise(balance_delta = sum(balance))
+  
+  return(cust_bal_ch)
+}
+
+balance_growth_end_of_years(trans_corrected)
+balance_account(trans_corrected)
+customer_balance_change(trans_corrected)
+```
+```{r}
+t <- trans %>%
+  dplyr::arrange(account_id, date) %>%
+  dplyr::group_by(account_id) %>%
+  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) #%>%
+  #dplyr::filter(type == 'VYDAJ') %>%
+  #dplyr::filter(balance_diff >= 0)
+  
+t
+```
+
+```{r}
+o <- trans %>%
+  dplyr::arrange(account_id, date) %>%
+  dplyr::group_by(account_id) %>%
+  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
+  dplyr::filter(k_symbol == 'UROK') %>%
+  dplyr::filter(balance_diff <= 0)
+  
+o
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r child = '../footer.Rmd'}
 ```

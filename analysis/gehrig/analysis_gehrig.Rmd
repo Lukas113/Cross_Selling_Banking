@@ -1,7 +1,14 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 
 ```{r echo = FALSE}
 library(tidyverse)
 library(RPostgreSQL)
+library(zoo)
+library(hrbrthemes)
 source('../helpers/transformation.R')
 ```
 
@@ -39,9 +46,9 @@ load(file = '../objects/trans.rda')
 ```
 
 ```{r echo = TRUE}
-lowest_date <- as.Date('1993-01-01')
+lowest_trans_date <- as.Date('1993-01-01')
 lowest_year <- 1993
-highest_date <- as.Date('1998-12-31')
+highest_trans_date <- as.Date('1998-12-31')
 highest_year <- 1998
 
 beginning_date <- function(year){
@@ -133,7 +140,11 @@ trans_type_vyber(trans)
 
 #### Trans correction
 ```{r echo = TRUE}
-trans_corrected <- corr_trans(trans)
+trans_altered <- alter_trans(trans)
+account_altered <- alter_account(account)
+disp_altered <- alter_disp(disp)
+card_altered <- alter_card(card)
+loan_altered <- alter_loan(loan)
 ```
 
 
@@ -148,25 +159,25 @@ account_loan_check <- function(account_frame, loan_frame){
   return(base::summary.data.frame(account_loan))
 }
 
-account_loan_check(account, loan)
+account_loan_check(account_altered, loan_altered)
 ```
 
 #### Vermögen pro Account
 
 ```{r echo = TRUE}
-balance_account <- function(trans_frame, min_date = lowest_date, max_date = highest_date){
+balance_account <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date){
   min_date <- as.Date(min_date)
   max_date <- as.Date(max_date)
   account_balance <- trans_frame %>% 
-    dplyr::filter(date >= min_date & date <= max_date) %>%
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
     dplyr::group_by(account_id) %>%
-    dplyr::filter(date == max(date)) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
     dplyr::filter(trans_id == max(trans_id)) %>%
     dplyr::arrange(account_id)
   return(account_balance)
 }
 
-balance_distribution <- function(trans_frame, min_date = lowest_date, max_date = highest_date, binwidth = 2000){
+balance_distribution <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date, binwidth = 2000){
   balances <- balance_account(trans_frame, min_date, max_date)
   ggplot2::ggplot(data = balances, aes(balance)) + 
   ggplot2::geom_density(aes(y =..density..), fill = 'red', alpha = 0.85) +
@@ -174,23 +185,37 @@ balance_distribution <- function(trans_frame, min_date = lowest_date, max_date =
   ggplot2::labs(title = paste0('Account Balance Distribution ', max_date), x = 'balance', y = 'density')
 }
 
-b_acc <- balance_account(trans)
+b_acc <- balance_account(trans_altered)
 base::summary(b_acc$balance)
 
-balance_dist <- balance_distribution(trans_corrected)
+balance_dist <- balance_distribution(trans_altered)
 balance_dist
 ```
 
 #### Vermögenverhältnisse der Bank
 ```{r echo = TRUE}
 for (year in lowest_year:highest_year) {
-  b_dist <- balance_distribution(trans, max_date = ending_date(year))
+  b_dist <- balance_distribution(trans_altered, max_date = ending_date(year))
   print(b_dist)
 }
 ```
 
-#### Jährlicher Vermögensveränderung
+#### Card Ownership
 ```{r echo = TRUE}
+card_ownership <- function(card_frame, disp_frame){
+  ownership_frame <- card_frame %>%
+    dplyr::inner_join(disp_frame, by = 'disp_id')
+  
+  ggplot2::ggplot(data = ownership_frame) + 
+    ggplot2::geom_bar(mapping = aes(x = card_type, fill = disp_type))
+}
+
+card_ownership(card_frame = card_altered, disp_frame = disp_altered)
+```
+
+
+#### Jährlicher Vermögensveränderung
+```{r echo = TRUE ,warning = FALSE}
 balance_delta <- function(balances){
   return(c(NA, diff(balances)))
 }
@@ -200,12 +225,14 @@ balance_delta_initial <- function(balances){
 }
 
 balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALSE){
+  #' @description returns the yearly balance at end of year of each customer
+  
   bal_grw <- trans_frame %>%
-    dplyr::mutate(year = format(date, '%Y')) %>%
+    dplyr::mutate(year = format(trans_date, '%Y')) %>%
     dplyr::group_by(account_id, year) %>%
-    dplyr::filter(date == max(date)) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
     dplyr::filter(trans_id == max(trans_id)) %>%
-    dplyr::arrange(account_id, date)
+    dplyr::arrange(account_id, trans_date)
    
   if (with_initial_balance){
     bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta_initial)))
@@ -215,50 +242,131 @@ balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALS
   return(bal_grw)
 }
 
-customer_balance_change_estimation <- function(trans_frame, without_initial_balance = FALSE, min_date = lowest_date, max_date = highest_date){
+customer_balance_change_estimation <- function(trans_frame, without_initial_balance = FALSE, min_date = lowest_trans_date, max_date = highest_trans_date, join_data_frame = NA){
+  #' @description returns the estimated income and expenses, total and monthly, from each customer. In addition, the already jointed data frame 'card', 'disp' & 'account' can be given to get the above mentioned figures at the time of the customer's receipt of their credit card.
+  
   cust_bal_ch <- trans_frame
   
-  if (without_initial_balance){#filter opening balance if one is interested just in the estimated income
+  if(without_initial_balance){#filters opening balance if one is interested just in the estimated income
     cust_bal_ch <- cust_bal_ch %>%
       dplyr::group_by(account_id) %>%
-      dplyr::filter(date != min(date))
+      dplyr::filter(trans_date != min(trans_date))
   }
   
-  cust_bal_ch <- cust_bal_ch %>%
-    dplyr::filter(date >= min_date & date <= max_date) %>%
-    dplyr::group_by(account_id, type) %>%
-    dplyr::summarise(balance_change = sum(amount))
+  if(is.na(join_data_frame)){
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type) %>%
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }else{
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::inner_join(join_data_frame, by = 'account_id') %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(trans_date < issued) %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type, card_type) %>% #including card_type
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }
   
   cust_bal_ch$balance_delta <- (as.numeric(unlist(by(cust_bal_ch$balance_change, cust_bal_ch$account_id, balance_delta)))*-1)
+  
+  cust_bal_ch <- trans_frame %>%
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::summarise(duration_month = (zoo::as.yearmon(max(trans_date)) - zoo::as.yearmon(min(trans_date))) * 12 + 1) %>% #diff num of months
+    dplyr::inner_join(cust_bal_ch, by = 'account_id') %>%
+    dplyr::mutate(monthly_change = balance_change / duration_month) %>%
+    dplyr::mutate(monthly_balance_delta_change = balance_delta / duration_month)
   
   return(cust_bal_ch)
 }
 
-balance_account(trans_corrected)
-customer_balance_change_estimation(trans_frame = trans_corrected, without_initial_balance = TRUE)
+#customer_balance_change_estimation(trans_frame = trans_altered)
 ```
 
-
-```{r}
-t <- trans %>%
-  dplyr::arrange(account_id, date, desc(trans_id)) %>%
-  dplyr::group_by(account_id) %>%
-  dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
-  dplyr::filter(round2(abs(balance_diff), 0) == amount) %>% #ensures to just consider 100% correct calculated balance_diff
-  dplyr::filter(type == 'PRIJEM') %>%
-  dplyr::filter(balance_diff <= 0)
+#### Card & Balance Change-Correlation
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+card_balance_change_correlation <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description gets the dataframe of the balance_change until the date the credit card is issued
+  prep_frame <- card_frame %>%
+    dplyr::inner_join(disp_frame, by = 'disp_id') %>%
+    dplyr::inner_join(account_frame, by = 'account_id')
   
-t
-```
+  return(customer_balance_change_estimation(trans_frame = trans_frame, join_data_frame = prep_frame))
+}
 
-
-
-```{r}
-o <- t %>%
-  dplyr::filter(operation == 'VYBER') %>%
-  dplyr::filter(balance_diff >= 0)
+plot_balance_change <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description balance_plot controller
+  df_cbcc <- card_balance_change_correlation(trans_frame, account_frame, disp_frame, card_frame)
+  df_vydaj <- df_cbcc %>% dplyr::filter(trans_type == 'VYDAJ')
+    
+  flow_total <- ggplot2::ggplot(data = df_cbcc, aes(x = balance_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Total Flow of Money until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type)
   
-o
+  flow_monthly <- ggplot2::ggplot(data = df_cbcc, aes(x = monthly_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Monthly Flow of Money until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type)
+  
+  balance_delta_total <- ggplot2::ggplot(data = df_vydaj, aes(x = balance_delta, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Total Balance when the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  balance_delta_monthly <- ggplot2::ggplot(data = df_vydaj, aes(x = monthly_balance_delta_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Monthly Balance Change until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  print(flow_total)
+  print(flow_monthly)
+  print(balance_delta_total)
+  print(balance_delta_monthly)
+}
+
+plot_balance_change(trans_altered, account_altered, disp_altered, card_altered)
+```
+
+
+```{r echo = TRUE}
+validate_orders <- function(orders_frame, account_frame, trans_frame){
+  #' @description filters all orders where never a payment is registered in trans (based on account_to matching)
+  
+  val_frame <- orders_frame %>%
+    dplyr::inner_join(account_altered, by = 'account_id') %>%
+    dplyr::inner_join(trans_frame, by = c('account_id', 'account_to' = 'account')) %>%
+    dplyr::select(account_id, account_to, amount) %>%
+    dplyr::distinct() %>%
+    dplyr::rename(account_id_left = account_id, account_to_left = account_to, amount_left = amount) %>%
+    dplyr::right_join(orders_frame, by = c('account_id_left' = 'account_id', 'account_to_left' = 'account_to')) %>%
+    dplyr::filter(is.na(amount_left)) %>%
+    dplyr::select(-amount_left) %>%
+    dplyr::rename(account_id = account_id_left, account_to = account_to_left)
+  
+  return(val_frame)
+}
+
+validate_orders(orders, account_altered, trans_altered)
+```
+
+
+
+```{r echo = TRUE}
+#alle LEASING k_symbol orders wurden nicht ausgeführt
+orders %>%
+  dplyr::filter(k_symbol == 'LEASING')
 ```
 
 
@@ -266,30 +374,27 @@ o
 
 
 
+#### Transaktionstype-analyse 
+```{r echo = FALSE}
+analyze_transactions <- function(trans_frame){
+  frame <- trans_frame %>%
+    dplyr::arrange(account_id, trans_date, desc(trans_id)) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
+    dplyr::filter(round2(abs(balance_diff), 0) == trans_amount) %>% #ensures to just consider 100% correct calculated balance_diff
+    dplyr::filter(trans_type == 'PRIJEM') %>%
+    dplyr::filter(balance_diff <= 0)
+  
+  return(frame)
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r child = '../footer.Rmd'}
+#)analyze_transactions(trans_altered)
 ```
+
+
+
+
+
+
+#```{r child = '../footer.Rmd'}
+#```

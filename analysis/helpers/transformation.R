@@ -1,15 +1,64 @@
 library(tidyverse)
 
 
-corr_trans <- function(trans_frame){
-  #' @description corrects the observed false values of the trans:
+alter_trans <- function(trans_frame){
+  #' @description alters trans_frame:
   #' 
   #' - transforms type('VYBER') to type('PRIJEM')
+  #' - renames columns 'date', 'type' & 'amount' to avoid collisions if one intends to join with other tables
   
   trans_frame <- trans_frame %>%
-    mutate(type = replace(type, type == 'VYBER', 'VYDAJ'))
+    dplyr::mutate(type = replace(type, type == 'VYBER', 'VYDAJ')) %>%
+    dplyr::rename(trans_date = date,
+           trans_amount = amount,
+           trans_type = type)
   
   return(trans_frame)
+}
+
+alter_account <- function(account_frame){
+  #' @description alters account_frame:
+  #' 
+  #' - renames column 'date' to avoid collisions if one intends to join with other tables
+  
+  account_frame <- account_frame %>%
+    dplyr::rename(account_date = date)
+  
+  return(account_frame)
+}
+
+alter_disp <- function(disp_frame){
+  #' @description alters disp_frame:
+  #' 
+  #' - renames column 'type' to avoid collisions if one intends to join with other tables
+  
+  disp_frame <- disp_frame %>%
+    dplyr::rename(disp_type = type)
+  
+  return(disp_frame)
+}
+
+alter_card <- function(card_frame){
+  #' @description alters card_frame:
+  #' 
+  #' - renames column 'type' to avoid collisions if one intends to join with other tables
+  
+  card_frame <- card_frame %>%
+    dplyr::rename(card_type = type)
+  
+  return(card_frame)
+}
+
+alter_loan <- function(loan_frame){
+  #' @description alters loan_frame:
+  #' 
+  #' - renames columns 'date' & 'amount' to avoid collisions if one intends to join with other tables
+  
+  loan_frame <- loan_frame %>%
+    dplyr::rename(loan_date = date,
+                  loan_amount = amount)
+  
+  return(loan_frame)
 }
 
 round2 = function(x, n) {

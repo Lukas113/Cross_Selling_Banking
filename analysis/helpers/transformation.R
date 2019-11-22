@@ -5,13 +5,14 @@ alter_trans <- function(trans_frame){
   #' @description alters trans_frame:
   #' 
   #' - transforms type('VYBER') to type('PRIJEM')
-  #' - renames columns 'date', 'type' & 'amount' to avoid collisions if one intends to join with other tables
+  #' - renames columns 'date', 'type', 'k_symbol' & 'amount' to avoid collisions if one intends to join with other tables
   
   trans_frame <- trans_frame %>%
     dplyr::mutate(type = replace(type, type == 'VYBER', 'VYDAJ')) %>%
     dplyr::rename(trans_date = date,
            trans_amount = amount,
-           trans_type = type)
+           trans_type = type,
+           trans_k_symbol = k_symbol)
   
   return(trans_frame)
 }
@@ -60,6 +61,15 @@ alter_loan <- function(loan_frame){
   
   return(loan_frame)
 }
+
+alter_orders <- function(orders_frame){
+  #' @description alters orders_frame:
+  #' 
+  #' - renames column 'k_symbol' to avoid collisions if one intends to join with other tables
+  
+  orders_frame <- orders_frame %>%
+    dplyr::rename(orders_k_symbol = k_symbol)
+  }
 
 round2 = function(x, n) {
   #' @description rounds mathematically correct, e.g. rounds 0.5 up instead of down like base::round

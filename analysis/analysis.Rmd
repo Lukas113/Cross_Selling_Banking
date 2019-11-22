@@ -32,6 +32,26 @@ Notebook erstellt am: `r date()`
 ## Notebooks
 
 ### Notebook Gehrig
+- Bedeutung der fehlenden Werte in 'trans'
+- Vermögensverteilung der Kunden pro Jahr und insgesammt
+- Analyse des Einkommens (noch viele unklarheiten)
+
+#### Tabelle disp (Gehrig)
+- Auffälligkeit: Identische "disp_id" und "client_id" bis "client_id" 8777 (Zeile 4987)
+  &rarr; 1 zu n Verbindung von client zu account, keine Schwierigkeiten bezüglich Datenabfrage
+  
+- Keine doppelte Clients vorhanden. Ist disp Tabelle nötig? Evtl. immer neuer Client eröffnet worden?
+  &rarr; Disp Tabelle ist streng genommen nicht nötig, da von client zu account eine n zu 1 Verbindung ist
+
+#### Tabelle loans (Gehrig)
+- "duration" ist wahrscheinlich in Monaten
+  &rarr; Ja, ist in Monaten
+
+- Tabelle "loans" mit "trans" vergleichen. Werden Rückzahlungen in "trans" abgebildet?
+  &rarr; Ja, Rückzahlungen werden in "trans" abgebildet ('UVER')
+  
+- Herausfinden, ob ein account mehrere Loans hat
+  &rarr; Nein, kein account hatte jemals mehr als eine loan
 ```{r child = 'gehrig/analysis_gehrig.Rmd'}
 ```
 

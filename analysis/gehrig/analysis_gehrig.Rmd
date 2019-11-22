@@ -1,15 +1,459 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r echo = FALSE}
+library(tidyverse)
+library(RPostgreSQL)
+library(zoo)
+library(hrbrthemes)
+source('../helpers/transformation.R')
+```
+
 ```{r child = '../header.Rmd'}
 ```
 
 #### Tabelle disp (Gehrig)
-- Auffälligkeit: Identische «disp_id» und «client_id» bis «client_id» 8777 (Zeile 4987)
+- Auffälligkeit: Identische "disp_id" und "client_id" bis "client_id" 8777 (Zeile 4987)
+  &rarr; 1 zu n Verbindung von client zu account, keine Schwierigkeiten bezüglich Datenabfrage
+  
 - Keine doppelte Clients vorhanden. Ist disp Tabelle nötig? Evtl. immer neuer Client eröffnet worden?
+  &rarr; Disp Tabelle ist streng genommen nicht nötig, da von client zu account eine 1 zu n Verbindung ist
 
 #### Tabelle loans (Gehrig)
-- «duration» ist wahrscheinlich in Monaten
-- «status» unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
-- Tabelle «loans» mit «trans» vergleichen. Werden Rückzahlungen in «trans» abgebildet?
-- Herausfinden, ob ein Account mehrere Loans hat
+- "duration" ist wahrscheinlich in Monaten
+  &rarr; Ja, ist in Monaten
+  
+- "status" unterteilt Kunden in Darlehen abgeschlossen/läuft und bezahlt pünktlich/in rückstand
 
-```{r child = '../footer.Rmd'}
+- Tabelle "loans" mit "trans" vergleichen. Werden Rückzahlungen in "trans" abgebildet?
+  &rarr; Ja, Rückzahlungen werden in "trans" abgebildet ('UVER')
+  
+- Herausfinden, ob ein account mehrere Loans hat
+  &rarr; Nein, kein account hatte jemals mehr als eine loan
+
+```{r echo = FALSE}
+load(file = '../objects/account.rda')
+load(file = '../objects/card.rda')
+load(file = '../objects/client.rda')
+load(file = '../objects/disp.rda')
+load(file = '../objects/district.rda')
+load(file = '../objects/loan.rda')
+load(file = '../objects/orders.rda')
+load(file = '../objects/trans.rda')
 ```
+
+```{r echo = TRUE}
+lowest_trans_date <- as.Date('1993-01-01')
+lowest_year <- 1993
+highest_trans_date <- as.Date('1998-12-31')
+highest_year <- 1998
+
+beginning_date <- function(year){
+  return(as.Date(paste0(year, '-01-01')))
+}
+
+ending_date <- function(year){
+  return(as.Date(paste0(year, '-12-31')))
+}
+```
+
+
+#### Analyse fehlende Werte "trans"
+
+- x_1 = k_symbol(' '), bank('NA'), account('0'), operation('VYBER'): Barkredit (n=616)
+- x_2 = k_symbol(' '), operation('PREVOD NA UCET'): Überweisung an eine andere Bank (n=52817)
+
+- x_3 = k_symbol('NA'), bank('NA'), account('NA'), operation('VKLAD'): Geldeinzahlung des Kunden an die Bank (n=156743)
+- x_4 = k_symbol('NA'), bank('NA'), account('NA'), operation('VYBER'): Barkredit der Bank an den Kunden (n=263664)
+- x_5 = k_symbol('NA'), bank('NA'), account('0'), operation('VYBER KARTOU'): Geldauszahlung Kreditkarte (n=8036)
+
+- x_6 = k_symbol('NA'), operation('PREVOD NA UCET'): Überweisung an eine andere Bank (n=8155)
+- x_7 = k_symbol('NA'), operation('PREVOD Z UCTU'): Überweisung von einer anderen Bank (n=34888)
+
+- x_8 = k_symbol('UROK'), bank('NA'), account('NA'), operation('NA'): Zinsgutschrift der Bank an den Kunden (n=183114)
+- x_9 = k_symbol('SLUZBY'), bank('NA'), account('NA'), operation('VYBER'): Barkredit für das bezahlen einer Rechnung (n=155832)
+- x_10 = k_symbol('SANKC. UROK'), bank('NA'), account('NA'), operation('VYBER'): Negativzinsen, Gutschrift für die Bank (n=1577)
+- x_11 = k_symbol('UVER'), bank('NA'), account('NA'), operation('PREVOD NA UCET'): Geldüberweisung an eine UNBEKANNTE Bank (n=1)
+- x_12 = k_symbol('SIPO'), bank('NA'), account('0'), operation('VYBER'): Barkredit für Haushalt (n=2811)
+- x_13 = k_symbol('POJISTNE'), bank('NA'), account('0'), operation('VYBER'): Barkredit für Versicherungsrechnung (n=23)
+
+
+```{r echo = TRUE}
+analyze_na <- function(frame){
+  k_whitespace <- trans %>% dplyr::filter(k_symbol == ' ')
+  x_1 <- k_whitespace %>% dplyr::filter(is.na(bank) & account == 0) %>% dplyr::count()
+  x_2 <- k_whitespace %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  
+  k_na <- trans %>% dplyr::filter(is.na(k_symbol))
+  k_bank_na <- k_na %>% dplyr::filter(is.na(bank))
+  x_3 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VKLAD') %>% dplyr::count()
+  x_4 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VYBER') %>% dplyr::count()
+  x_5 <- k_bank_na %>% dplyr::filter(account == 0 & operation == 'VYBER KARTOU') %>% dplyr::count()
+  
+  x_6 <- k_na %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_7 <- k_na %>% dplyr::filter(operation == 'PREVOD Z UCTU') %>% dplyr::count()
+  
+  bank_na <- trans %>% dplyr::filter(is.na(bank))
+  bank_account_na <- bank_na %>% dplyr::filter(is.na(account))
+  x_8 <- bank_account_na %>% dplyr::filter(k_symbol == 'UROK' & is.na(operation)) %>% dplyr::count()
+  x_9 <- bank_account_na %>% dplyr::filter(k_symbol == 'SLUZBY' & operation == 'VYBER') %>% dplyr::count()
+  x_10 <- bank_account_na %>% dplyr::filter(k_symbol == 'SANKC. UROK' & operation == 'VYBER') %>% dplyr::count()
+  x_11 <- bank_account_na %>% dplyr::filter(k_symbol == 'UVER' & operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_12 <- bank_na %>% dplyr::filter(k_symbol == 'SIPO' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  x_13 <- bank_na %>% dplyr::filter(k_symbol == 'POJISTNE' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  
+  print(paste('x_1:', x_1$n))
+  print(paste('x_2:', x_2$n))
+  print(paste('x_3:', x_3$n))
+  print(paste('x_4:', x_4$n))
+  print(paste('x_5:', x_5$n))
+  print(paste('x_6:', x_6$n))
+  print(paste('x_7:', x_7$n))
+  print(paste('x_8:', x_8$n))
+  print(paste('x_9:', x_9$n))
+  print(paste('x_10:', x_10$n))
+  print(paste('x_11:', x_11$n))
+  print(paste('x_12:', x_12$n))
+  print(paste('x_13:', x_13$n))
+  
+}
+
+analyze_na(trans)
+```
+
+#### Trans 'type'
+Der 'type' der trans hat laut Beschreibung lediglich:
+- "PRIJEM" stands for credit 
+- "VYDAJ" stands for withdrawal
+Jedoch ist in der Datenbank ein dritter 'type' "VYBER" (n=16666) vorhanden. Dieser wird für eine vereinfachte Analyse auf "VYDAJ" umgewandelt, was bedenkenlos gemacht werden kann, da "VYBER" in 'type' nicht definiert ist.
+```{r echo = TRUE}
+trans_type_vyber <- function(trans_frame){
+  ggplot2::ggplot(data = trans_frame) + 
+    ggplot2::geom_bar(mapping = aes(x = type, fill = type))
+}
+
+trans_type_vyber(trans)
+```
+
+#### Data-Frames Anpassen
+Veränderung einiger Data-Frames, um:
+- Zweideutigkeiten von Variabelbenennungen bei Joins zu vermeiden
+- Koorektur einiger Werte für eine vereinfachte Datenanalyse
+```{r echo = TRUE}
+trans_altered <- alter_trans(trans)
+account_altered <- alter_account(account)
+disp_altered <- alter_disp(disp)
+card_altered <- alter_card(card)
+loan_altered <- alter_loan(loan)
+orders_altered <- alter_orders(orders)
+```
+
+
+#### Account & Loan
+
+Hier wird Bewiesen, dass jeder 'account' nie mehr als eine 'loan' hat.
+```{r echo = TRUE}
+account_loan_check <- function(account_frame, loan_frame){
+  account_loan <- dplyr::inner_join(account_frame, loan_frame, by = 'account_id') %>%
+    dplyr::count(account_id) %>%
+    dplyr::select(n)
+  return(base::summary.data.frame(account_loan))
+}
+
+account_loan_check(account_altered, loan_altered)
+```
+
+#### Vermögen pro Account
+Hier ist die Verteilung des Vermögens aller Kunden am Stichtag ersichtlich. Eine Minderheit der Accounts hat einen negativen Saldo. Die grösste Häufung an Accounts befindet sich etwa bei 25'000 Kronen. Die meisten Accounts haben zwischen 10'000 und 100'000 Kronen Vermögen auf ihrem Konto.
+```{r echo = TRUE}
+balance_account <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date){
+  min_date <- as.Date(min_date)
+  max_date <- as.Date(max_date)
+  account_balance <- trans_frame %>% 
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id)
+  return(account_balance)
+}
+
+balance_distribution <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date, binwidth = 2000){
+  balances <- balance_account(trans_frame, min_date, max_date)
+  ggplot2::ggplot(data = balances, aes(balance)) + 
+  ggplot2::geom_density(aes(y =..density..), fill = 'red', alpha = 0.85) +
+  ggplot2::scale_x_continuous(labels = scales::comma) +
+  ggplot2::labs(title = paste0('Account Balance Distribution ', max_date), x = 'balance', y = 'density')
+}
+
+b_acc <- balance_account(trans_altered)
+base::summary(b_acc$balance)
+
+balance_dist <- balance_distribution(trans_altered)
+balance_dist
+```
+
+#### Vermögenverhältnisse der Bank
+Hier ist die jährliche Vermögensvertielung der Bank ersichtlich. Es ist zu erkennen, dass die Bank über den ganzen Zeitraum eine ähnliche Vermögensverteilung aufweist.
+```{r echo = TRUE}
+for (year in lowest_year:highest_year) {
+  b_dist <- balance_distribution(trans_altered, max_date = ending_date(year))
+  print(b_dist)
+}
+```
+
+#### Card Ownership
+Hier ist ersichtlich, dass nur 'OWNER' eines Accounts eine Kreditkarte besitzen. Dies ist so nicht aus der Beschreibung her ersichtlich und lässt uns annehmen, dass dies eine Business-Rule ist, die wir beim Cross-Selling beachten müssen.
+```{r echo = TRUE}
+card_ownership <- function(card_frame, disp_frame){
+  ownership_frame <- card_frame %>%
+    dplyr::inner_join(disp_frame, by = 'disp_id')
+  
+  ggplot2::ggplot(data = ownership_frame) + 
+    ggplot2::geom_bar(mapping = aes(x = card_type, fill = disp_type))
+}
+
+card_ownership(card_frame = card_altered, disp_frame = disp_altered)
+```
+
+
+#### Account Vermögensveränderungen
+Erstellung des Daten-Frames zur monatlichen, jährlichen und absoluten Vermögensveränderung.
+```{r echo = TRUE ,warning = FALSE}
+balance_delta <- function(balances){
+  return(c(NA, diff(balances)))
+}
+
+balance_delta_initial <- function(balances){
+  return(c(balances[1], diff(balances)))
+}
+
+balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALSE){
+  #' @description returns the yearly balance at end of year of each customer
+  
+  bal_grw <- trans_frame %>%
+    dplyr::mutate(year = format(trans_date, '%Y')) %>%
+    dplyr::group_by(account_id, year) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id, trans_date)
+   
+  if (with_initial_balance){
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta_initial)))
+  }else{
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta)))
+  }
+  return(bal_grw)
+}
+
+customer_balance_change_estimation <- function(trans_frame, without_initial_balance = FALSE, min_date = lowest_trans_date, max_date = highest_trans_date, join_data_frame = NA){
+  #' @description returns the estimated income and expenses, total and monthly, from each customer. In addition, the already jointed data frame 'card', 'disp' & 'account' can be given to get the above mentioned figures at the time of the customer's receipt of their credit card.
+  
+  cust_bal_ch <- trans_frame
+  
+  if(without_initial_balance){#filters opening balance if one is interested just in the estimated income
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(trans_date != min(trans_date))
+  }
+  
+  if(is.na(join_data_frame)){
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type) %>%
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }else{
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::inner_join(join_data_frame, by = 'account_id') %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(trans_date < issued) %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type, card_type) %>% #including card_type
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }
+  
+  cust_bal_ch$balance_delta <- (as.numeric(unlist(by(cust_bal_ch$balance_change, cust_bal_ch$account_id, balance_delta)))*-1)
+  
+  cust_bal_ch <- trans_frame %>%
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::summarise(duration_month = (zoo::as.yearmon(max(trans_date)) - zoo::as.yearmon(min(trans_date))) * 12 + 1) %>% #diff num of months
+    dplyr::inner_join(cust_bal_ch, by = 'account_id') %>%
+    dplyr::mutate(monthly_change = balance_change / duration_month) %>%
+    dplyr::mutate(monthly_balance_delta_change = balance_delta / duration_month)
+  
+  return(cust_bal_ch)
+}
+```
+
+
+#### Card & Balance Change-Correlation
+```{r echo = TRUE, warning = FALSE}
+card_balance_change_correlation <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description gets the dataframe of the balance_change until the date the credit card is issued
+  prep_frame <- card_frame %>%
+    dplyr::inner_join(disp_frame, by = 'disp_id') %>%
+    dplyr::inner_join(account_frame, by = 'account_id')
+  
+  return(customer_balance_change_estimation(trans_frame = trans_frame, join_data_frame = prep_frame))
+}
+
+plot_balance_change <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description balance_plot controller
+  df_cbcc <- card_balance_change_correlation(trans_frame, account_frame, disp_frame, card_frame)
+  df_vydaj <- df_cbcc %>% dplyr::filter(trans_type == 'VYDAJ')
+    
+  flow_total <- ggplot2::ggplot(data = df_cbcc, aes(x = balance_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Total Flow of Money until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type)
+  
+  flow_monthly <- ggplot2::ggplot(data = df_cbcc, aes(x = monthly_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Monthly Flow of Money until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type)
+  
+  balance_delta_total <- ggplot2::ggplot(data = df_vydaj, aes(x = balance_delta, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Total Balance when the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  balance_delta_monthly <- ggplot2::ggplot(data = df_vydaj, aes(x = monthly_balance_delta_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
+    ggplot2::xlab('money') +
+    ggplot2::ggtitle('Monthly Balance Change until the Card is Issued') +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  print(flow_total)
+  print(flow_monthly)
+  print(balance_delta_total)
+  print(balance_delta_monthly)
+}
+```
+
+#### Genauigkeitsüberprüfung der Einkommensschätzung
+```{r echo = TRUE}
+check_balance_change_estimation <- function(){
+  estimation <- customer_balance_change_estimation(trans_frame = trans_altered)
+  estimation <- estimation %>%
+    dplyr::filter(trans_type == 'VYDAJ') %>%
+    dplyr::select(account_id, balance_delta)
+  
+  balances <- balance_account(trans_altered)
+  balances <- balances %>%
+    dplyr::select(account_id, balance)
+  
+  comparison_frame <- estimation %>%
+    dplyr::inner_join(balances, by = 'account_id') %>%
+    dplyr::mutate(delta = abs(balance - balance_delta))
+  
+  #alter to eliminate outliers to get a better plot
+  comparison_frame_altered <- comparison_frame %>%
+    dplyr::filter(delta < 250)
+  
+  comparison_plot <- ggplot2::ggplot(comparison_frame_altered, aes(delta)) +
+    ggplot2::geom_histogram(aes(y = ..count..), binwidth = 5, fill = "skyblue")
+  
+  print(base::summary.data.frame(comparison_frame %>% dplyr::select(-account_id)))
+  print(comparison_plot)
+}
+
+check_balance_change_estimation()
+```
+
+
+#### Einkommen und Vermögen verglichen mit Kreditkarten
+Total Flow of Money until the Card is Issued:
+- Es ist ersichtlich, dass Kunden, die eine Goldkarte besitzen, einen
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+plot_balance_change(trans_altered, account_altered, disp_altered, card_altered)
+```
+
+
+
+```{r echo = TRUE, fig.width = 10}
+validate_orders <- function(orders_frame, account_frame, trans_frame, combined = FALSE){
+  #' @description filters all orders where never a payment is registered in trans (based on account_to matching)
+  
+  orders_in_trans <- orders_frame %>%
+    dplyr::inner_join(account_altered, by = 'account_id') %>%
+    dplyr::inner_join(trans_frame, by = c('account_id', 'account_to' = 'account')) %>%
+    dplyr::select(account_id, account_to, amount, orders_k_symbol) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(shown_in_trans = TRUE)
+  
+  orders_not_in_trans <- orders_in_trans %>%
+    dplyr::rename(account_id_left = account_id, account_to_left = account_to, amount_left = amount, orders_k_symbol_left = orders_k_symbol) %>%
+    dplyr::right_join(orders_frame, by = c('account_id_left' = 'account_id', 'account_to_left' = 'account_to', 'orders_k_symbol_left' = 'orders_k_symbol')) %>%
+    dplyr::filter(is.na(amount_left)) %>%
+    dplyr::select(-amount_left) %>%
+    dplyr::rename(account_id = account_id_left, account_to = account_to_left, orders_k_symbol = orders_k_symbol_left) %>%
+    dplyr::mutate(shown_in_trans = FALSE)
+  
+  if(combined){
+    orders_combined <- orders_not_in_trans %>%
+      dplyr::select(account_id, account_to, amount, orders_k_symbol, shown_in_trans) %>%
+      dplyr::bind_rows(orders_in_trans)
+    return(orders_combined)
+  }else{
+    return(orders_not_in_trans)
+  }
+}
+
+visualize_orders_validation <- function(orders_frame, account_frame, trans_frame){
+  orders_labeled <- validate_orders(orders_frame, account_frame, trans_frame, TRUE)
+  
+  orders_labeled_plot <- ggplot2::ggplot(data = orders_labeled, aes(x = shown_in_trans, fill = orders_k_symbol)) + 
+    ggplot2::geom_bar() +
+    ggplot2::ggtitle('Orders NOT IN & IN Trans')
+  
+  orders_not_in_trans <- validate_orders(orders_frame, account_frame, trans_frame)
+  orders_not_in_trans_plot <- ggplot2::ggplot(data = orders_not_in_trans, aes(x = orders_k_symbol, fill = orders_k_symbol)) +
+    ggplot2::geom_bar() +
+    ggplot2::ggtitle('Distribution of orders_k_symbol of Orders NOT IN Trans')
+  
+  print(orders_labeled_plot)
+  print(orders_not_in_trans_plot)
+}
+
+visualize_orders_validation(orders_altered, account_altered, trans_altered)
+```
+
+
+
+#### Transaktionstype-analyse 
+```{r echo = FALSE}
+analyze_transactions <- function(trans_frame){
+  frame <- trans_frame %>%
+    dplyr::arrange(account_id, trans_date, desc(trans_id)) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
+    dplyr::filter(round2(abs(balance_diff), 0) == trans_amount) %>% #ensures to just consider 100% correct calculated balance_diff
+    dplyr::filter(trans_type == 'PRIJEM') %>%
+    dplyr::filter(balance_diff <= 0)
+  
+  return(frame)
+}
+
+#)analyze_transactions(trans_altered)
+```
+
+
+
+
+
+
+#```{r child = '../footer.Rmd'}
+#```

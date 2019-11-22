@@ -42,10 +42,17 @@ dataAge = dbGetQuery(con, "SELECT
 	count(EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)))
 FROM client
 group by age")
+
 library(ggplot2)
 ggplot(data = dataAge) + 
-  geom_point(mapping = aes(x = count, y = age))
+  geom_point(mapping = aes(x = age, y = count)) + scale_x_continuous(breaks = c(10,20,30,40,50,60,70,80,90))
 ```
+
+```{r echo=FALSE}
+dataCard = dbGetQuery(con, "SELECT type, count(type) FROM card group by type")
+head(dataCard)
+```
+
 
 
 #### Tabelle trans (Märki)

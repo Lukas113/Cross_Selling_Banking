@@ -9,11 +9,17 @@ Notebook erstellt am: `r date()`
 
 ## Besprechungen
 
+### Inflight 2: 19.11.2019
+- Vermögen, Alter, Gekaufte Produkte, Loyalität
+
+
 ### 30.10.2019
 #### Protokoll
 - Lu macht File mit datebank, pro User.
 - Gehrig fragt inwiefern Attributbeschreibung wichtig ist. Und er fragt nach null Wert.
 - Regel definieren für nicht Vorhandene Daten / Zellen in Tabelle trans.
+
+
 
 ## Aktuelle Hypothesen / Fragen:
 - Geben Goldkartenuser mehr aus / höhere transaktionen / mehrere Transaktionen als junior oder classic?

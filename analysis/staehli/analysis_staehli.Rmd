@@ -75,95 +75,12 @@ from district
 
 ### Bearbeitung eigener Hypothesen
 
-- Kunden mit einer GOLD Karte transferieren mehr und haben mehr Geld.
-  -Goldkartennutzer transferieren mehr im Bezug auf einen Kunden, doch im Bezug aufs ganze Handelsvolumen machen die Classic-User das Rennen
-```{r}
-library(RPostgreSQL)
-library(tidyverse)
-DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
-DB_PORT = 5432
-DB_DBNAME = 'bank_db' # or 'warenkorb_db'
-DB_USERNAME = 'db_user' 
-DB_PASSWORD = 'db_user_pw' 
-
-# load the PostgreSQL driver
-drv <- dbDriver("PostgreSQL")
-# connect to the database
-con <- dbConnect(drv, dbname = DB_DBNAME,
-                 host = DB_HOST, port = DB_PORT,
-                 user = DB_USERNAME, password = DB_PASSWORD)
-
-cards_trans <- dbGetQuery(con,"SELECT card.card_id, card.type AS card_type , disp.client_id, disp.type AS account_type,
-disp.account_id, trans.date, trans.amount, ROUND(trans.balance) AS balance,
-CASE 
-	WHEN trans.type = 'PRIJEM' THEN 'credit'
-	WHEN trans.type = 'VYDAJ' THEN 	'withdrawal'
-END AS transaction_type , 
-CASE 
-	WHEN trans.operation = 'VYBER KARTOU' THEN 'credit card withdrawal'
-	WHEN trans.operation = 'VKLAD' THEN 'credit in cash'
-	WHEN trans.operation = 'PREVOD Z UCTU' THEN 'collection of other bank'
-	WHEN trans.operation = 'VYBER' THEN 'withdrawal in cash'
-	WHEN trans.operation = 'PREVOD NA UCET' THEN 'remittance to another bank' 
-END AS transaction_operation FROM card 
-LEFT JOIN disp ON card.disp_id = disp.disp_id
-LEFT JOIN trans ON disp.account_id = trans.account_id
-ORDER BY trans.account_id 
-")
-head(cards_trans)
-
-# filter all transaction to a time-frame of one year
-card_trans_lastyear <- filter(cards_trans, between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
-
-# Plot amount of payments and operation type for card types
-p_trans_op <- ggplot(data = card_trans_lastyear, mapping = aes(x = transaction_operation, fill = card_type) )  + geom_bar(alpha = 1/2, position = "identity") + coord_flip() + labs(title = "All transaction in one year with operation type")
-print(p_trans_op)
-
-# plot types of transactions types regarding to card type  
-p_trans_type <- ggplot(data = card_trans_lastyear, mapping = aes(x = transaction_type, fill = card_type)) +
-  geom_bar(alpha = 1/4, position = "dodge") + coord_flip() + labs(title = "All transaction in one year with tranaction_type")
-print(p_trans_type)
-
-#filter rows acc. card_type for 1 yr.
-#print(max(gold_users$date))
-gold_users <- filter(cards_trans, card_type == "gold" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
-classic_users <- filter(cards_trans, card_type == "classic" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
-junior_users <- filter(cards_trans, card_type == "junior" & between(date, as.Date("1997-11-30"), as.Date("1998-11-30"))) 
-
-#Alle Transaktionen runtergebrochen auf ein User
-gold_one_user <- round(sum(gold_users$amount) / nrow(gold_users), 0)
-classic_one_user <- round(sum(classic_users$amount) / nrow(classic_users),0)
-junior_one_user <- round(sum(junior_users$amount) / nrow(junior_users),0)
-
-one_user <- data.frame("user_type" = c("gold","classic","junior"), "amt_per_transaction" = c(gold_one_user, classic_one_user, junior_one_user))
-
-head(one_user)
-
-ggplot(data = one_user, aes(x = user_type, y = amt_per_transaction, fill = user_type)) + geom_col(alpha = 1/2, position = "identity") + coord_flip() + labs(title = "Transactions in relation to one user")
-    
-```
-
-
 - Kunden, die einen Kredit haben, und den Status nicht bezahlt, sind schlechte Kunden.
   - Meiste Kunden hatten gar nie einen Kredit
 
-```{r}
-library(RPostgreSQL)
-library(tidyverse)
-DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
-DB_PORT = 5432
-DB_DBNAME = 'bank_db' # or 'warenkorb_db'
-DB_USERNAME = 'db_user' 
-DB_PASSWORD = 'db_user_pw' 
+```{sql connection=con, output.var = "accounts_loans"}
 
-# load the PostgreSQL driver
-drv <- dbDriver("PostgreSQL")
-# connect to the database
-con <- dbConnect(drv, dbname = DB_DBNAME,
-                 host = DB_HOST, port = DB_PORT,
-                 user = DB_USERNAME, password = DB_PASSWORD)
-
-accounts_loans <- dbGetQuery(con,"SELECT account.account_id, account.district_id,
+SELECT account.account_id, account.district_id,
 CASE 
 	WHEN account.frequency = 'POPLATEK MESICNE' THEN 'monthly'
 	WHEN account.frequency = 'POPLATEK TYDNE' THEN 'weekly'
@@ -180,8 +97,12 @@ END AS payment_status
 FROM account 
 LEFT JOIN loan ON account.account_id = loan.account_id
 GROUP BY account.account_id, loan.loan_id
-ORDER BY account.date")
+ORDER BY account.date
 
+
+````
+
+```{r}
 head(accounts_loans)
 
 #Most accounts didn't ever have loan
@@ -283,40 +204,23 @@ Junior:
 - Anteil verhältnismässig hoch: D9, D2, D18, D59(höher als Classic), D69
 - Tief: D54, D68
 
-```{r}
+```{sql connection=con, output.var = "client_card_districts"}
 
-library(RPostgreSQL)
-library(tidyverse)
-
-DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
-DB_PORT = 5432
-DB_DBNAME = 'bank_db' # or 'warenkorb_db'
-DB_USERNAME = 'db_user' 
-DB_PASSWORD = 'db_user_pw' 
-
-# load the PostgreSQL driver
-drv <- dbDriver("PostgreSQL")
-# connect to the database
-con <- dbConnect(drv, dbname = DB_DBNAME,
-                 host = DB_HOST, port = DB_PORT,
-                 user = DB_USERNAME, password = DB_PASSWORD)
-
-client_card_districts <- dbGetQuery(con,"SELECT card.type AS card_type, disp.client_id, client.district_id,
+SELECT card.type AS card_type, disp.client_id, client.district_id,
 district.a2 AS district_name, district.a11 AS district_salary, district.a4 AS no_inhabitants FROM card
 FULL JOIN disp ON card.disp_id = disp.disp_id
 FULL JOIN client ON disp.client_id = client.client_id
 FULL JOIN district ON client.district_id = district.a1
-ORDER BY card.type, disp.client_id")
+ORDER BY card.type, disp.client_id
 
-head(client_card_districts)
 
-# Neue Tabelle gruppiert mit district_i und anzahl karten gesamt
-ggplot(clients_with_card, aes(x = district_id, y = cards_per_district)) +
-  geom_col(alpha = 1/2) +  xlim(1,77) +  scale_x_continuous(breaks = 1:77) 
+````
+
+```{r}
 
 #Amount of cards in district 
 ggplot(client_card_districts, aes(x = district_id, color = card_type)) +
-  geom_freqpoly(binwidth = 1, alpha = 3/4) + labs(title = "Amount of customers in districts" ) +
+  geom_freqpoly(binwidth = 1, alpha = 3/4) + labs(title = "Amount of all customers in districts" ) +
   scale_x_continuous(breaks = 1:77) + coord_cartesian(xlim = 1:77, ylim = 1:100)  #Richtig skalieren!!
  
 
@@ -337,15 +241,81 @@ ggplot(card_district_one_usr, aes(x = district_id, y = no_cards_per_inhabitant, 
 
 ```
 
-Anteile 
 
-- KOnten mit einem hohen Kontostand sind gute Kunden.
+KOnten mit einem hohen Kontostand sind gute Kunden.
+  - Erhebe Daten aus Transaktion passend zu deren Account_id bezüglich ihrer Balance
+
+Beobachtung:
+
+  - Steigender Trend bez. Transaktionstyp Bargeldbezug (withdrawal in cash) 
+    -> Die Nachfrage nach KK sollte da sein 
+    -> Welche Kunden haben Bargeldbezüge getätigt? Nur Kunden mit bestehender KK? Falls nein, mögliche Kunden für Verkauf einer KK
+  
+```{sql connection=con, output.var = "disp_transactions"}
+
+SELECT disp.disp_id, disp.client_id, disp.account_id, disp.type, trans.trans_id, trans.date,
+CASE
+	WHEN trans.type = 'PRIJEM' THEN 'credit'
+	WHEN trans.type = 'VYDAJ' THEN 	'withdrawal'
+END AS transaction_type,
+CASE 
+	WHEN trans.operation = 'VYBER KARTOU' THEN 'credit card withdrawal'
+	WHEN trans.operation = 'VKLAD' THEN 'credit in cash'
+	WHEN trans.operation = 'PREVOD Z UCTU' THEN 'collection of other bank'
+	WHEN trans.operation = 'VYBER' THEN 'withdrawal in cash'
+	WHEN trans.operation = 'PREVOD NA UCET' THEN 'remittance to another bank' 
+END AS transaction_operation,
+trans.amount, ROUND(trans.balance) AS balance_after_trans
+FROM disp 
+LEFT JOIN trans ON disp.account_id = trans.account_id
+ORDER BY trans.trans_id
+
+```` 
+  
+```{r}
+
+head(disp_transactions)
+
+disp_transactions <- disp_transactions %>% #convert dataframe to a tibble
+  as_tibble(disp_transactions)
+
+#Alle Transaktinen pro Jahr (Alle Inhabertypen)
+trans_per_year <- disp_transactions %>%
+  separate(date, sep = "-", into = c("year", "month", "day") ) %>%
+  transmute(trans_id, type, year, transaction_type, transaction_operation)
+
+ggplot(trans_per_year, aes(x = year, fill = transaction_operation, color = type)) +
+  geom_bar(alpha = 3/4, position = "dodge") +  
+  scale_fill_brewer(palette = "Greys") + labs(title = "Amount of transactions per year") +
+  ylab("transactions") + scale_y_continuous(breaks = c(0,50000, 100000, 150000,200000))
+
+# Bargeldbezüge von Disponenten
+trans_per_year_disponent <- disp_transactions %>%
+  separate(date, sep = "-", into = c("year", "month", "day") ) %>%
+  transmute(trans_id,type , year, transaction_type, transaction_operation) %>%
+  filter(type == "DISPONENT") %>% arrange(year)
+
+head(trans_per_year_disponent)
+
+ggplot(trans_per_year_disponent, aes(x = year, fill = transaction_operation)) +
+  geom_bar(alpha = 3/4, position = "dodge") + scale_fill_brewer(palette = "Set3") +
+  labs(title = "Amount of transactions of all disponents") + ylab("transactions")
 
 
 
-- Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine Kredite stets zurück, macht häufig Gebrauch von der Kreditkarte
+```
+
+
+Wann kommt eine Karte für einen Kunden infrage?
+  - Viele Transaktionen oder Bargeldbezüge (withdrawals)
+  - Kunden, ohne Karte, welche vermehrt Bezüge tätigen sollten eine Karte besitzen.
+
+Wie alt sind Junior-Kartennutzer? Wo ist die Altersgrenze
+
+Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine Kredite stets zurück, macht häufig Gebrauch von der Kreditkarte
 
 - Kunden, die ein Haus haben, haben mehr Geld.
+  - Suche nach Accounts mit Transkationen für Haushalt und nach deren Balance
 
 
 
@@ -356,5 +326,3 @@ Anteile
 ```
 
 
-```{r child = '../footer.Rmd'}
-```

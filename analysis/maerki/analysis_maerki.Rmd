@@ -1,38 +1,57 @@
 ```{r child = '../header.Rmd'}
 ```
 
-#### Tabelle client (Märki)
-- Neue Spalte «gender» aus «birth_number» erstellen
-- Neue Spalte «birthdate» aus «birth_number» erstellen im Format YYYY-MM-DD. Achtung Daten bis 1997, sprich 00 = 1900
-
-- Stichtag Alter: 31.12.1998
-- Berechnung von Alter könnte man schöner machen, indem man direkt die birthdate Spalte benutzt (Falls dies möglich ist)
-```{r echo=FALSE}
-dataClient = dbGetQuery(con, "SELECT *,
-	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
-		'f'
-	ELSE
-		'm'
-	END as gender,
-	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN
-		TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD')
-	ELSE
-		TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD')
-	END as birthdate,
-	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age
-FROM client LIMIT 10")
-
-head(dataClient)
+```{r}
+library(ggplot2)
+source('../helpers/prepareData.R')
 ```
 
-```{r echo=FALSE}
-dataGender = dbGetQuery(con, "SELECT
-	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'f' ELSE 'm' END as gender,
-	count(CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'f' ELSE 'm' END)
-FROM client
-group by gender")
 
-head(dataGender)
+### Karten
+
+```{r echo=FALSE}
+data_all_card_count <- get_all_card_count()
+print(data_all_card_count)
+```
+Insgesamt sind 892 Kreditkarten im Umlauf.
+
+
+```{r echo=FALSE}
+data_card_count_by_card_type <- get_card_count_by_card_type()
+ggplot(data_card_count_by_card_type, aes(x=type, y=count)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=count), vjust=0)
+```
+
+
+```{r echo=FALSE}
+data_distinct_accounts_by_card <- get_distinct_accounts_by_card()
+print(data_distinct_accounts_by_card)
+```
+Kein Konto hat mehrere Kreditkarten. (892 verschiedene Konten)
+
+```{r echo=FALSE}
+data_card_count_by_disp_type <- get_card_count_by_disp_type()
+ggplot(data_card_count_by_disp_type, aes(x=type, y=count)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=count), vjust=0)
+```
+
+Alle Kartenbesitzer sind auch Inhaber der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account». Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.
+
+```{r echo=FALSE}
+data_months_until_cards_issued <- get_months_until_cards_issued()
+head(data_months_until_cards_issued)
+```
+
+
+
+
+#### Client
+
+```{r echo=FALSE}
+data_count_by_gender <- get_count_by_gender()
+head(data_count_by_gender)
 ```
 Die Verteilung der Frauen und Männer ist repräsentativ.
 
@@ -53,50 +72,6 @@ dataCard = dbGetQuery(con, "SELECT type, count(type) FROM card group by type")
 head(dataCard)
 ```
 
-
-
-#### Tabelle trans (Märki)
-- Gewisse Zeilen haben einen 0 «amount»
-- Es gibt null Werte bei «operation», «k_symbol», «bank» und «account»
-- Wenn «operation» null, scheint k_symbol «UROK» (Zinsgutschriften) zu sein
-- Heraussuchen wer fast keine Transaktionen hat (Tote Menschen)
-
-- Auffälligkeit: Der Zeitraum der Transaktionen ist, anders als bei den Accounts, von 1993 - 1998 (6 Jahre)
-
-```{r}
-dataTransaction = dbGetQuery(con, "SELECT
-	trans_id, account_id, date,
-	 CASE type
-		WHEN 'PRIJEM' THEN 'credit'
-		WHEN 'VYDAJ' THEN 'withdrawal'
-		ELSE 'undefined'
-	END AS type,
-	CASE operation
-		WHEN 'VYBER KARTOU' THEN 'credit card withdrawal'
-		WHEN 'VKLAD' THEN 'credit in cash'
-		WHEN 'PREVOD Z UCTU' THEN 'collection from another bank'
-		WHEN 'VYBER' THEN 'withdrawal in cash'
-		WHEN 'PREVOD NA UCET' THEN 'remittance to another bank'
-		ELSE 'undefined'
-	END AS operation,
-	amount, balance,
-	CASE k_symbol
-		WHEN 'POJISTNE' THEN 'insurrance payment'
-		WHEN 'SLUZBY' THEN 'payment for statement'
-		WHEN 'UROK' THEN 'interest credited'
-		WHEN 'SANKC. UROK' THEN 'sanction interest if negative balance'
-		WHEN 'SIPO' THEN 'household'
-		WHEN 'DUCHOD' THEN 'old-age pension'
-		WHEN 'UVER' THEN 'loan payment'
-		ELSE 'undefined'
-	END AS k_symbol,
-	bank, account
-FROM trans
-order by date asc
-LIMIT 10")
-
-print(dataTransaction)
-```
 
 ```{r child = '../footer.Rmd'}
 ```

@@ -4,6 +4,8 @@
 ```{r}
 library("RPostgreSQL")
 library(tidyverse)
+source('../helpers/prepareData.R')
+
 # define the database connection string
 DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
 DB_PORT = 5432
@@ -19,7 +21,6 @@ con <- dbConnect(drv, dbname = DB_DBNAME,
                  user = DB_USERNAME, password = DB_PASSWORD)
 ```
 
-
 #### Tabelle orders (Stähli)
 - Gewisse Zeilen enthalten kein «k_symbol»
   - Unsaubere Klassifizierung -> Zuweisung der Kategorie unbekannt
@@ -27,6 +28,7 @@ con <- dbConnect(drv, dbname = DB_DBNAME,
   - Die Währung ist die Tschechische Krone
 - Frequenz und Datum von Daueraufträge prüfen 
 
+### Permanent Orders
 
 ```{sql connection=con, output.var = "permanent_orders"}
 SELECT trans.trans_id, trans.date, orders.orders_id, orders.account_id, orders.account_to, orders.amount,  
@@ -64,6 +66,7 @@ Calculation of the average time of permanent orders. result is `r average_time_p
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen
 
 ```{sql connection=con, output.var = "district"}
+
 SELECT a1 as district_code, a2 as district_name,
 a3 as region, a4 as no_of_inhabitants, a5 as municipalities_u499,
 a6 as municipalties_500_1999, a7 as municipalties_2000_9999, a8 as municipalties_o9999,
@@ -71,21 +74,21 @@ a9 as no_of_cities, a10 as ratio_urban_inhabitants, a11 as avg_salary,
 a12 as unemploymt_rate95, a13 as unemploymt_rate96, a14 as no_enterpreneurs_per_1000,
 a15 as commited_crimes95, a16 as commited_crimes96 
 from district
+
 ```
 
 ### Bearbeitung eigener Hypothesen
 
 - Kunden, die einen Kredit haben, und den Status nicht bezahlt, sind schlechte Kunden.
   - Meiste Kunden hatten gar nie einen Kredit
+  
+Tasks:
+  Loan status join mit Kartentyp
+  Relativ zur Ausstellung zur Karte, welche Loans wurden getätigt?
 
 ```{sql connection=con, output.var = "accounts_loans"}
 
 SELECT account.account_id, account.district_id,
-CASE 
-	WHEN account.frequency = 'POPLATEK MESICNE' THEN 'monthly'
-	WHEN account.frequency = 'POPLATEK TYDNE' THEN 'weekly'
-	WHEN account.frequency = 'POPLATEK PO OBRATU' THEN 'after transaction' 
-END AS account_issuance,
 account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
 loan.payments, 
 CASE 
@@ -98,9 +101,8 @@ FROM account
 LEFT JOIN loan ON account.account_id = loan.account_id
 GROUP BY account.account_id, loan.loan_id
 ORDER BY account.date
-
-
 ````
+
 
 ```{r}
 head(accounts_loans)
@@ -146,6 +148,69 @@ ggplot(accounts_with_loans,aes(x = date_of_loan)) +
 
 ```
 
+## Untersuchung "Loans"
+### "Loans" und Kartentypen
+
+```{sql connection=con, output.var = "card_types_loans"}
+SELECT card.issued AS card_issued, card.type, account.account_id,
+loan.loan_id, loan.date AS loan_date, loan.amount, loan.duration,
+loan.payments, CASE 
+	WHEN loan.status = 'A' THEN 'finished - no problems'
+  	WHEN loan.status = 'B' THEN 'finished - unpayed'
+  	WHEN loan.status = 'C' THEN 'running - OK'
+  	WHEN loan.status = 'D' THEN 'running - in debt' 
+	END AS loan_status
+FROM disp
+INNER JOIN card ON card.disp_id = disp.disp_id
+INNER JOIN account ON disp.account_id = account.account_id
+INNER JOIN loan ON account.account_id = loan.account_id
+ORDER BY account.account_id
+```
+
+```{r}
+# Packages
+require(scales)
+
+#Aesthtetics
+color_fill  <- scale_fill_brewer(palette = "Pastel1")
+scales_comma <- scale_x_continuous(labels = comma)
+
+# Wie viele Loans sind bestehend für jeden Kartenbenutzer
+ggplot(card_types_loans, aes(x = type, fill = loan_status)) + geom_bar(alpha = 0.8) + color_fill
+
+# Welche Accounts hatten vor Ausstellung einer Karte bereits einen Loan und wie sah es bez. Kartentyp aus
+# Remark zu plot:  Tag 0 entspricht Ausstellung der Karte
+card_types_loans_timediff <- card_types_loans %>%
+  filter(loan_date < card_issued) %>%
+  mutate(time_diff_loan_card = abs(difftime(loan_date, card_issued))) %>% glimpse()
+
+# Welche Accounts hatten vor Ausstellung einer Karte bereits einen Loan und wie sah es bez. Kartentyp aus
+# Remark zu plot:  Tag 0 entspricht Ausstellung der Karte   
+ggplot(card_types_loans_timediff, aes(time_diff_loan_card, fill = type)) + geom_density(alpha = 0.8) + color_fill +
+  labs(title = "Date from loan to card")  
+
+# Wie sehen die Loan AMounts zu den einzelnen Kartentypen aus?
+card_types_loans %>%
+  ggplot(aes(x = amount, fill = type)) + geom_density(alpha = 0.5) + color_fill + 
+  labs( title = "Loan amount on card type") + scale_x_continuous(labels = comma)
+
+# Monatliche Zahlungen nach Kartentype
+card_types_loans %>%
+  ggplot(aes(x = payments, fill = type)) + geom_density(alpha = 0.5) + color_fill + 
+  labs( title = "Monthly Payments on card_type") + scale_x_continuous(labels = comma)
+
+# Wie sieht das Kreditvolumen im Bezug auf die Dauer aus?
+card_types_loans %>%
+  ggplot(aes(x = duration, y = amount, fill = type)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels = comma) + scale_x_continuous(breaks = card_types_loans$duration) + color_fill
+
+
+
+```
+
+
+
 
   - Aus District 1 (Prag) werden am meisten loans bezogen
   - Höchste Outliers ebenfalls in D1
@@ -181,6 +246,106 @@ ggplot(plot_2_loans_district, aes(x = district_id,
 
 ```
 
+
+### "Loans" und weitere Demografische Daten
+
+```{sql connection=con, output.var = "loans_demographic"}
+ SELECT 
+	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
+		'f'
+	ELSE
+		'm'
+	END as gender,
+	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN
+		TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD')
+	ELSE
+		TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD')
+	END as birthdate,
+	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
+	card.type AS card_type, card.issued AS card_issued, loan.loan_id, loan.account_id,
+	loan.date AS loan_granted, loan.amount AS loan_amount, loan.duration AS loan_duration, CASE
+	WHEN loan.status = 'A' THEN 'finished - no problems'
+  	WHEN loan.status = 'B' THEN 'finished - unpayed'
+  	WHEN loan.status = 'C' THEN 'running - OK'
+  	WHEN loan.status = 'D' THEN 'running - in debt' 
+	END AS loan_status, loan.payments AS loan_payments
+FROM client
+INNER JOIN disp ON client.client_id = disp.client_id
+INNER JOIN card ON disp.disp_id = card.disp_id
+INNER JOIN account ON disp.account_id = account.account_id
+INNER JOIN loan ON account.account_id = loan.account_id
+ORDER BY loan.loan_id
+ 
+````
+
+```{r}
+library(ggridges)
+glimpse(loans_demographic)
+
+#Verteilung des Geschlechts 
+#Gleiche Anzahl Loans für Mann und Frau (Kartentypen sehen ebenfalls identisch aus)
+loans_demographic %>%
+ggplot(aes(x = gender, fill = card_type)) +
+  geom_bar(alpha = 3/4) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Anz. M/F, welche einen Loan haben")
+
+#Verteilung des Alters im Bezug auf Loans und Payment_status
+summary(loans_demographic[3])
+loans_demographic %>%
+  ggplot(aes(x = age, fill = loan_status)) + 
+  geom_density(alpha = 1/3) +
+  labs(title = "Altersverteilung und Loanstatus")
+
+```
+
+```{r}
+#Âesthetic Mappings
+library(fmsb)
+color_fill<- scale_fill_brewer(palette = "Set2")
+
+all_clients <- get_all_clients()
+head(all_clients)
+
+#Verteilung des Alters und Geschlechts
+all_clients %>%
+  ggplot(aes(x = age, fill = gender)) + 
+  scale_fill +
+  geom_density(alpha = 1/3)
+
+#Verteilung des Geschlechts nach Wohndistrikte und nach Kartentypen
+
+all_clients_join_region_ctype <- get_all_clients_join_region_ctype()
+view(all_clients_join_region_ctype)
+
+# MEnge aller Kunden zugeordnet zu den Distrikten
+all_clients_join_region_ctype %>%
+  ggplot(aes(x = region, fill = type)) +
+  geom_bar(alpha = 1/2, position = "stack") + 
+  labs(title = "Amount of Customers in Regions") +
+  coord_flip() 
+
+# Altersveteilung nach Kartentyp
+plot_all_types_age <- function(type_card){
+  all_clients_join_region_ctype %>%
+    filter(type == type_card) %>%
+    ggplot(aes(x = age, fill = type)) +
+    geom_density(alpha = 1/2, fill = "lightblue") + 
+    labs(title = "Alterverteilung Karte",type_card)
+}
+plot_all_types_age("junior")
+plot_all_types_age("gold")
+plot_all_types_age("classic")
+
+#Alterverteilung in den Distrikten
+#Loyality Score
+
+
+
+```
+
+
+## Untersuchung "Districts"
 ### Können Kartennutzer nach der Kartenklassifizierung einem District zugeordnet werden?
 Beobachtungen:
 Generell:
@@ -250,6 +415,9 @@ Beobachtung:
   - Steigender Trend bez. Transaktionstyp Bargeldbezug (withdrawal in cash) 
     -> Die Nachfrage nach KK sollte da sein 
     -> Welche Kunden haben Bargeldbezüge getätigt? Nur Kunden mit bestehender KK? Falls nein, mögliche Kunden für Verkauf einer KK
+    
+Tasks:
+  Welche Kartentypen tätigen welche Transaktionen
   
 ```{sql connection=con, output.var = "disp_transactions"}
 
@@ -284,10 +452,6 @@ trans_per_year <- disp_transactions %>%
   separate(date, sep = "-", into = c("year", "month", "day") ) %>%
   transmute(trans_id, type, year, transaction_type, transaction_operation)
 
-ggplot(trans_per_year, aes(x = year, fill = transaction_operation, color = type)) +
-  geom_bar(alpha = 3/4, position = "dodge") +  
-  scale_fill_brewer(palette = "Greys") + labs(title = "Amount of transactions per year") +
-  ylab("transactions") + scale_y_continuous(breaks = c(0,50000, 100000, 150000,200000))
 
 # Bargeldbezüge von Disponenten
 trans_per_year_disponent <- disp_transactions %>%
@@ -310,19 +474,13 @@ Wann kommt eine Karte für einen Kunden infrage?
   - Viele Transaktionen oder Bargeldbezüge (withdrawals)
   - Kunden, ohne Karte, welche vermehrt Bezüge tätigen sollten eine Karte besitzen.
 
-Wie alt sind Junior-Kartennutzer? Wo ist die Altersgrenze
+Wie alt sind Junior-Kartennutzer? Wo ist die Altersgrenze?
+  Ältester User ist 24 Jahre alt.
 
 Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine Kredite stets zurück, macht häufig Gebrauch von der Kreditkarte
 
 - Kunden, die ein Haus haben, haben mehr Geld.
   - Suche nach Accounts mit Transkationen für Haushalt und nach deren Balance
 
-
-
-
-
-```{r}
-
-```
 
 

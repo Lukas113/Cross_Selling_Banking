@@ -1,0 +1,20 @@
+Produktspezifischer Ansatz der Analyse?
+Holistischer Ansatz?
+
+Inputs:
+- Kundentwicklung zum Kauf einer KK 
+	- Transaktionen, loans, payment status, sich verändernde Variablen
+	- Erstellung eines Datensatzes relativ zum Kauf der Karte (+- 3 Monate z.B.)
+
+- Demographische Merkmale
+	- Wohnhaft districts, gender, age, usw.
+
+- Verteilung der Einkommen
+	- Gibst da eine Segment in welchem viele KK sind?
+
+- Offene Loan und Payments
+	- Hängen Loan Status mit der Ausstellung der KK zusm.?
+
+
+
+-> Vermögen, Loyalität, Alter, Interaktionen

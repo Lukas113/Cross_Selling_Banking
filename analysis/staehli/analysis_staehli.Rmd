@@ -211,42 +211,6 @@ card_types_loans %>%
 
 
 
-
-  - Aus District 1 (Prag) werden am meisten loans bezogen
-  - Höchste Outliers ebenfalls in D1
-  
-```{r}
-#loan amount depending on amount
-plot_1_loans_district <-  na.omit(filter(accounts_with_loans, between(district_id, 0, 40)))
-plot_2_loans_district <- na.omit(filter(accounts_with_loans, 
-                                        between(district_id,
-                                                41,max(accounts_with_loans$district_id))))
-
-#Plot: where are the most loans comming from
-ggplot(accounts_with_loans, aes(x = district_id)) +
-  geom_bar()
-
-# Plot all districts with boxplot
-ggplot(accounts_with_loans, aes(district_id, loan_amount, group = district_id)) +
-  geom_boxplot() +
-  geom_line(data = accounts_with_loans, aes(y = mean(loan_amount), x = district_id)) +
-   xlim(1,78) + ylim(0,600000) + scale_x_continuous(breaks = c(1:77)) 
-
-# More accurate plots regarding to upper plot
-ggplot(plot_1_loans_district, aes(x = district_id, 
-                           y = loan_amount, group = district_id)) +
-  geom_boxplot() + scale_x_continuous(breaks = plot_1_loans_district$district_id) + 
-  labs(title = "Districts 1 to 40")
-
-ggplot(plot_2_loans_district, aes(x = district_id, 
-                           y = loan_amount, group = district_id)) +
-  geom_boxplot() + scale_x_continuous(breaks = plot_2_loans_district$district_id) +
-  labs(title = "Districts 41 to 77")
-
-
-```
-
-
 ### "Loans" und weitere Demografische Daten
 
 ```{sql connection=con, output.var = "loans_demographic"}
@@ -310,7 +274,7 @@ head(all_clients)
 #Verteilung des Alters und Geschlechts
 all_clients %>%
   ggplot(aes(x = age, fill = gender)) + 
-  scale_fill +
+  color_fill +
   geom_density(alpha = 1/3)
 
 #Verteilung des Geschlechts nach Wohndistrikte und nach Kartentypen
@@ -337,7 +301,22 @@ plot_all_types_age("junior")
 plot_all_types_age("gold")
 plot_all_types_age("classic")
 
+summary(all_clients_join_region_ctype$age)
+
 #Alterverteilung in den Distrikten
+ggplot(all_clients_join_region_ctype, aes(x = age, fill = region)) +
+  geom_density(alpha = 1/2) + 
+  facet_wrap(~region, ncol= 2) + 
+  color_fill +
+  scale_x_continuous(breaks = seq(0,90,15))
+
+ggplot(all_clients_join_region_ctype, aes(x = age, y = region, fill = region)) +
+  geom_density_ridges(alpha = 1/2) + 
+  scale_fill_brewer(palette = "YlOrRd") +
+  scale_x_continuous(breaks = seq(0,90,10))
+
+
+
 #Loyality Score
 
 
@@ -482,5 +461,17 @@ Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine 
 - Kunden, die ein Haus haben, haben mehr Geld.
   - Suche nach Accounts mit Transkationen für Haushalt und nach deren Balance
 
+
+### Untersuchung der bezogenen Dienstleistungen pro Account 
+Es werden nur Accounts untersucht, welche eine Karte haben.
+Das Zeitfenster wird als relativ zur Ausstellung der Karte beachtet
+
+```{r}
+check_services <- get_check_services()
+
+accounts_have_card <- check_services %>%
+  group_by()
+
+```
 
 

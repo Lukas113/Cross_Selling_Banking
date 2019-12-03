@@ -129,3 +129,18 @@ get_all_clients <- function() {
   FROM client")
   return(data)
 }
+
+get_check_services <- function(){
+  "SELECT disp.account_id, card.card_id, card.issued AS card_issued,
+  loan.loan_id, loan.payments AS loan_payments,  orders.orders_id, trans.trans_id, trans.date AS transaction_date,
+  trans.amount AS transaction_amount
+  FROM disp
+  FULL JOIN card ON disp.disp_id = card.disp_id
+  FULL JOIN account ON disp.account_id = account.account_id
+  FULL JOIN loan ON account.account_id = loan.account_id
+  FULL JOIN orders ON account.account_id = orders.account_id
+  LEFT JOIN trans ON account.account_id = trans.account_id
+  WHERE DATE_PART('year', card.issued ) < 1999 AND DATE_PART('year', card.issued ) >= 1997
+  ORDER BY account.account_id "
+}
+

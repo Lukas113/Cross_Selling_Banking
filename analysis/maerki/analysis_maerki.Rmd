@@ -1,19 +1,16 @@
 ```{r child = '../header.Rmd'}
 ```
 
-```{r}
+```{r echo=FALSE}
 library(ggplot2)
 source('../helpers/prepareData.R')
 ```
 
-
-### Karten
-
 ```{r echo=FALSE}
-data_all_card_count <- get_all_card_count()
-print(data_all_card_count)
+data_count_by_gender <- get_count_by_gender()
+head(data_count_by_gender)
 ```
-Insgesamt sind 892 Kreditkarten im Umlauf.
+Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
 
 
 ```{r echo=FALSE}
@@ -22,6 +19,12 @@ ggplot(data_card_count_by_card_type, aes(x=type, y=count)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label=count), vjust=0)
 ```
+
+Insgesamt sind 892 Kreditkarten im Umlauf:
+
+* 659 Classic
+* 145 Junior
+* 88 Gold.
 
 
 ```{r echo=FALSE}
@@ -37,40 +40,35 @@ ggplot(data_card_count_by_disp_type, aes(x=type, y=count)) +
   geom_text(aes(label=count), vjust=0)
 ```
 
-Alle Kartenbesitzer sind auch Inhaber der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account». Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.
+Alle Kartenbesitzer sind auch Inhaber der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  
+Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.
 
 ```{r echo=FALSE}
-data_months_until_cards_issued <- get_months_until_cards_issued()
-head(data_months_until_cards_issued)
+data_client_age_by_issued_date <- get_client_age_by_issued_date()
+
+ggplot(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue, color=type)) +
+  geom_freqpoly(binwidth=4)
 ```
 
+Altersverteilung beim Ausstelldatum der Kreditkarte.  
+Gemäss den Daten wird die Junior-Kreditkarte nur an unter 25 Jährige vergeben.
+Da laut den Daten 55 Kunden unter 18 Jahren sind welche eine Kreditkarte erhalten haben, scheint es erlaubt zu sein, Kreditkarten an nicht volljährige Personen zu vergeben.
 
+Insgesamt gibt es 514 Clients welche Besitzer (owner) eines Accounts sind, welche keine Kreditkarte besitzen und unter 25 Jahre sind.  
+Die ersten 6:
+```{r echo=FALSE}
+data_clients_wihtout_credit_card_by_age_range_0_25 <- get_clients_without_credit_card_by_age_range(0, 25)
+head(data_clients_wihtout_credit_card_by_age_range_0_25)
+```
 
-
-#### Client
+Insgesamt gibt es 3094 Clients welche Besitzer (owner) eines Accounts sind, welche keine Kreditkarte besitzen und über 24 Jahre sind.  
+Die ersten 6:
 
 ```{r echo=FALSE}
-data_count_by_gender <- get_count_by_gender()
-head(data_count_by_gender)
-```
-Die Verteilung der Frauen und Männer ist repräsentativ.
-
-```{r echo=FALSE}
-dataAge = dbGetQuery(con, "SELECT
-	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
-	count(EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)))
-FROM client
-group by age")
-
-library(ggplot2)
-ggplot(data = dataAge) + 
-  geom_point(mapping = aes(x = age, y = count)) + scale_x_continuous(breaks = c(10,20,30,40,50,60,70,80,90))
+data_clients_wihtout_credit_card_by_age_range_24_100 <- get_clients_without_credit_card_by_age_range(24, 100)
+head(data_clients_wihtout_credit_card_by_age_range_24_100)
 ```
 
-```{r echo=FALSE}
-dataCard = dbGetQuery(con, "SELECT type, count(type) FROM card group by type")
-head(dataCard)
-```
 
 
 ```{r child = '../footer.Rmd'}

@@ -83,3 +83,4 @@ get_all_clients <- function() {
   FROM client")
   return(data)
 }
+

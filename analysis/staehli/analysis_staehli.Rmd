@@ -310,7 +310,7 @@ head(all_clients)
 #Verteilung des Alters und Geschlechts
 all_clients %>%
   ggplot(aes(x = age, fill = gender)) + 
-  scale_fill +
+  color_fill +
   geom_density(alpha = 1/3)
 
 #Verteilung des Geschlechts nach Wohndistrikte und nach Kartentypen
@@ -337,7 +337,22 @@ plot_all_types_age("junior")
 plot_all_types_age("gold")
 plot_all_types_age("classic")
 
+summary(all_clients_join_region_ctype$age)
+
 #Alterverteilung in den Distrikten
+ggplot(all_clients_join_region_ctype, aes(x = age, fill = region)) +
+  geom_density(alpha = 1/2) + 
+  facet_wrap(~region, ncol= 2) + 
+  color_fill +
+  scale_x_continuous(breaks = seq(0,90,15))
+
+ggplot(all_clients_join_region_ctype, aes(x = age, y = region, fill = region)) +
+  geom_density_ridges(alpha = 1/2) + 
+  scale_fill_brewer(palette = "YlOrRd") +
+  scale_x_continuous(breaks = seq(0,90,10))
+
+
+
 #Loyality Score
 
 

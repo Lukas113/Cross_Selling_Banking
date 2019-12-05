@@ -1,9 +1,12 @@
 ```{r child = '../header.Rmd'}
 ```
 
-```{r}
+```{r,echo=FALSE}
 library("RPostgreSQL")
 library(tidyverse)
+library("ggridges")
+library(hrbrthemes)
+
 source('../helpers/prepareData.R')
 
 # define the database connection string
@@ -30,7 +33,7 @@ con <- dbConnect(drv, dbname = DB_DBNAME,
 
 ### Permanent Orders
 
-```{sql connection=con, output.var = "permanent_orders"}
+```{sql connection=con, output.var = "permanent_orders", echo = FALSE}
 SELECT trans.trans_id, trans.date, orders.orders_id, orders.account_id, orders.account_to, orders.amount,  
 CASE 
 	WHEN orders.k_symbol = 'SIPO' THEN 'household' 
@@ -47,7 +50,7 @@ ORDER BY account_id, orders_id, date
 
 #### Average time of permanent orders
 
-```{r}
+```{r,echo=FALSE}
 
 # LAG Function zum Differenz der Spalten ausrechnen
 difference_in_time <- permanent_orders %>%
@@ -65,7 +68,7 @@ Calculation of the average time of permanent orders. result is `r average_time_p
 - Spalten sprechend benennen gemäss Beschreibung
 - district id 69 hat bei A12 und A15 ein «null», bitte vervollständigen
 
-```{sql connection=con, output.var = "district"}
+```{sql connection=con, output.var = "district", echo = FALSE}
 
 SELECT a1 as district_code, a2 as district_name,
 a3 as region, a4 as no_of_inhabitants, a5 as municipalities_u499,
@@ -86,7 +89,7 @@ Tasks:
   Loan status join mit Kartentyp
   Relativ zur Ausstellung zur Karte, welche Loans wurden getätigt?
 
-```{sql connection=con, output.var = "accounts_loans"}
+```{sql connection=con, output.var = "accounts_loans", echo = FALSE}
 
 SELECT account.account_id, account.district_id,
 account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
@@ -104,7 +107,7 @@ ORDER BY account.date
 ````
 
 
-```{r}
+```{r,echo=FALSE}
 head(accounts_loans)
 
 #Most accounts didn't ever have loan
@@ -151,7 +154,7 @@ ggplot(accounts_with_loans,aes(x = date_of_loan)) +
 ## Untersuchung "Loans"
 ### "Loans" und Kartentypen
 
-```{sql connection=con, output.var = "card_types_loans"}
+```{sql connection=con, output.var = "card_types_loans", echo = FALSE}
 SELECT card.issued AS card_issued, card.type, account.account_id,
 loan.loan_id, loan.date AS loan_date, loan.amount, loan.duration,
 loan.payments, CASE 
@@ -167,7 +170,7 @@ INNER JOIN loan ON account.account_id = loan.account_id
 ORDER BY account.account_id
 ```
 
-```{r}
+```{r,echo=FALSE}
 # Packages
 require(scales)
 
@@ -205,15 +208,13 @@ card_types_loans %>%
   geom_col(position = "dodge") + 
   scale_y_continuous(labels = comma) + scale_x_continuous(breaks = card_types_loans$duration) + color_fill
 
-
-
 ```
 
 
 
 ### "Loans" und weitere Demografische Daten
 
-```{sql connection=con, output.var = "loans_demographic"}
+```{sql connection=con, output.var = "loans_demographic", echo = FALSE}
  SELECT 
 	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
 		'f'
@@ -242,7 +243,7 @@ ORDER BY loan.loan_id
  
 ````
 
-```{r}
+```{r,echo=FALSE}
 library(ggridges)
 glimpse(loans_demographic)
 
@@ -258,12 +259,12 @@ ggplot(aes(x = gender, fill = card_type)) +
 summary(loans_demographic[3])
 loans_demographic %>%
   ggplot(aes(x = age, fill = loan_status)) + 
-  geom_density(alpha = 1/3) +
+  geom_density(alpha = 1/3, position = "stack") +
   labs(title = "Altersverteilung und Loanstatus")
 
 ```
 
-```{r}
+```{r,echo=FALSE}
 #Âesthetic Mappings
 library(fmsb)
 color_fill<- scale_fill_brewer(palette = "Set2")
@@ -315,12 +316,6 @@ ggplot(all_clients_join_region_ctype, aes(x = age, y = region, fill = region)) +
   scale_fill_brewer(palette = "YlOrRd") +
   scale_x_continuous(breaks = seq(0,90,10))
 
-
-
-#Loyality Score
-
-
-
 ```
 
 
@@ -348,7 +343,7 @@ Junior:
 - Anteil verhältnismässig hoch: D9, D2, D18, D59(höher als Classic), D69
 - Tief: D54, D68
 
-```{sql connection=con, output.var = "client_card_districts"}
+```{sql connection=con, output.var = "client_card_districts", echo = FALSE}
 
 SELECT card.type AS card_type, disp.client_id, client.district_id,
 district.a2 AS district_name, district.a11 AS district_salary, district.a4 AS no_inhabitants FROM card
@@ -360,7 +355,7 @@ ORDER BY card.type, disp.client_id
 
 ````
 
-```{r}
+```{r,echo=FALSE}
 
 #Amount of cards in district 
 ggplot(client_card_districts, aes(x = district_id, color = card_type)) +
@@ -398,7 +393,7 @@ Beobachtung:
 Tasks:
   Welche Kartentypen tätigen welche Transaktionen
   
-```{sql connection=con, output.var = "disp_transactions"}
+```{sql connection=con, output.var = "disp_transactions", echo = FALSE}
 
 SELECT disp.disp_id, disp.client_id, disp.account_id, disp.type, trans.trans_id, trans.date,
 CASE
@@ -419,7 +414,7 @@ ORDER BY trans.trans_id
 
 ```` 
   
-```{r}
+```{r,echo=FALSE}
 
 head(disp_transactions)
 
@@ -464,14 +459,54 @@ Profil eines guten Kunden: Viele Transaktionen mit hohen Beträgen, zahlt seine 
 
 ### Untersuchung der bezogenen Dienstleistungen pro Account 
 Es werden nur Accounts untersucht, welche eine Karte haben.
-Das Zeitfenster wird als relativ zur Ausstellung der Karte beachtet
+Zeitfenster card issued 1998 und restliche Accounts
 
-```{r}
-check_services <- get_check_services()
+#### Validation via SQL:
+Validation Loans: Loans in Transaktionen 652 obs. / Loans gesamt 682 obs.
+Es git kein Servicekonstrukt mit nur Loan 
 
-accounts_have_card <- check_services %>%
-  group_by()
+
+
+```{r,echo=FALSE}
+check_services <- as_tibble(get_check_services())
+glimpse(check_services)
+
+## Alle DL bezogen im Jahr 1998 von allen Leuten die eine Karte haben
+#Stimmt nicht mit anzahl orders überein wenn SQL abfrage gemacht/gGrund: Nur Personen mit Karte von 1998
+comparisson_services <- check_services %>%
+  transmute(account_id, card_YesNo = if_else(is.na(card_id) == FALSE, 1, 0 ),
+            loan_YesNo = if_else(is.na(loan_id) == FALSE, 1, 0),
+            order_YesNo = if_else(is.na(orders_id) == FALSE, 1, 0)) %>%
+  distinct(account_id, card_YesNo, loan_YesNo, order_YesNo ) %>% 
+  unite(card_loan_order, c("card_YesNo","loan_YesNo", "order_YesNo"), sep = "" ) %>%
+  arrange(account_id) %>%
+  mutate(number_obs = dplyr::row_number(account_id)) %>%
+  print()
+
+# Alle DL bezogen von Kartennutzer im Jahr 1998 und allen Nutzern, die keine Karte haben über alle Jahre
+comparisson_services %>%
+  ggplot(aes(card_loan_order)) +
+  geom_bar(fill = "lightblue", color = "black", position = "identity") +
+  scale_x_discrete(labels = c("None", "order", "loan/order", "card", "card/order", "card/loan/order"))+
+  geom_text(stat = "count", aes(label = ..count.., vjust = -0.5)) +
+  labs( title = "Number of Counts for each Service Construct",subtitle = "no customer counted twice!")
+ 
+## Verteilung der DL's über die Account_ID's
+comparisson_services %>%
+  ggplot(aes(x = account_id, fill = card_loan_order)) +
+  geom_histogram(binwidth = 50, position = "identity") + 
+  scale_fill_brewer(palette = "Set2") +
+  scale_x_continuous(breaks = seq(0,11000,2000)) +
+  labs(title = "Histogram over Account_ID's regarding to Services", 
+       caption = "3-Digit Code: 1xx = card / x1x = loan / xx1 = order") +
+  facet_wrap(~card_loan_order, ncol = 2)
+
+ggplot(comparisson_services, aes(x = number_obs , fill = card_loan_order)) +
+  geom_histogram(position = "identity", binwidth = 30) +
+  facet_wrap(~card_loan_order, ncol = 2) +
+  scale_fill_brewer(palette = "Set2") + 
+  labs(title = "Distirbution of obs. on RowIndex", 
+       caption = "3-Digit Code: 1xx = card / x1x = loan / xx1 = order")
 
 ```
-
 

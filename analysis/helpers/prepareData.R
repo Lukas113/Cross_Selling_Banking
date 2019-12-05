@@ -1,4 +1,22 @@
-library("RPostgreSQL")
+
+
+get_connection_SQL <- function() {
+  library("RPostgreSQL")
+  DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+  DB_PORT = 5432
+  DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+  DB_USERNAME = 'db_user' 
+  DB_PASSWORD = 'db_user_pw' 
+  
+  # load the PostgreSQL driver
+  drv <- dbDriver("PostgreSQL")
+  # connect to the database
+  con <- dbConnect(drv, dbname = DB_DBNAME,
+                   host = DB_HOST, port = DB_PORT,
+                   user = DB_USERNAME, password = DB_PASSWORD)
+  return(con) 
+}
+  
 
 get_card_count_by_disp_type <- function() {
   data <- dbGetQuery(con, "select distinct(disp.type), count(disp.type) from card join disp on card.disp_id = disp.disp_id group by disp.type")
@@ -81,16 +99,19 @@ get_count_by_client_age <- function() {
 }
 
 get_districts <- function() {
-  "SELECT a1 as district_code, a2 as district_name,
+  con <- get_connection_SQL()
+  data <- dbGetQuery(con,"SELECT a1 as district_code, a2 as district_name,
   a3 as region, a4 as no_of_inhabitants, a5 as municipalities_u499,
   a6 as municipalties_500_1999, a7 as municipalties_2000_9999, a8 as municipalties_o9999,
   a9 as no_of_cities, a10 as ratio_urban_inhabitants, a11 as avg_salary,
   a12 as unemploymt_rate95, a13 as unemploymt_rate96, a14 as no_enterpreneurs_per_1000,
   a15 as commited_crimes95, a16 as commited_crimes96 
-  from district" 
+  from district")
+  return(data)
 }
 
 get_all_clients_join_region_ctype <- function() {
+  con <- get_connection_SQL()
   data <- dbGetQuery(con,"SELECT  client.client_id,
   CASE WHEN MOD(client.birth_number / 100, 100) > 50 THEN 
   'f'
@@ -114,6 +135,7 @@ get_all_clients_join_region_ctype <- function() {
 
 
 get_all_clients <- function() {
+  con <- get_connection_SQL()
   data = dbGetQuery(con, "SELECT *,
 	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
 		'f'
@@ -131,6 +153,7 @@ get_all_clients <- function() {
 }
 
 get_check_services <- function(){
+  con <- get_connection_SQL()
   data <- dbGetQuery(con,"SELECT disp.account_id, card.card_id, card.issued AS card_issued,
   loan.loan_id, loan.payments AS loan_payments,  orders.orders_id, trans.trans_id, trans.date AS transaction_date,
   trans.amount AS transaction_amount
@@ -140,7 +163,7 @@ get_check_services <- function(){
   FULL JOIN loan ON account.account_id = loan.account_id
   FULL JOIN orders ON account.account_id = orders.account_id
   LEFT JOIN trans ON account.account_id = trans.account_id
-  WHERE DATE_PART('year', card.issued ) < 1999 AND DATE_PART('year', card.issued ) >= 1997
+  WHERE DATE_PART('year', card.issued ) = 1998 OR card.card_id IS NULL
   ORDER BY account.account_id ")
   return (data)
 }

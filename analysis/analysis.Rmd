@@ -59,7 +59,7 @@ Notebook erstellt am: `r date()`
 
 - Hat district Einfluss auf Kartentyp?
 Beobachtungen:
-Es sind eine wirklichen Verbindungen auszumachen. Wenig Daten vorhanden -> nicht repräsentativ
+Es sind keine wirklichen Verbindungen auszumachen. Wenig Daten vorhanden pro Distrikt -> nicht repräsentativ
 
 
 

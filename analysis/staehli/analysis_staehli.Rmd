@@ -55,7 +55,7 @@ account_owner_disp %>%
 
 ### Permanent Orders
 
-```{sql eval=FALSE, connection=con, include=FALSE, output.var="permanent_orders"}
+```{sql connection=con, include=FALSE, output.var="permanent_orders"}
 
 SELECT trans.trans_id, trans.date, orders.orders_id, orders.account_id, orders.account_to, orders.amount,  
 CASE 
@@ -73,7 +73,7 @@ ORDER BY account_id, orders_id, date
 
 #### Average time of permanent orders
 
-```{r,echo=FALSE eval=FALSE, include=FALSE, r,echo=FALSE}
+```{r,echo=FALSE, include=FALSE, r,echo=FALSE}
 
 # LAG Function zum Differenz der Spalten ausrechnen
 difference_in_time <- permanent_orders %>%
@@ -527,68 +527,5 @@ comparisson_services %>%
 
 ```
 
-
 Bemerkungen/Erkenntnisse:
-
-
-
-
-````{r}
-RPostgreSQL::dbDisconnect(con)
-RPostgreSQL::dbUnloadDriver(drv)
-
-#############################################
-killDbConnections <- function () {
-
-  all_cons <- dbListConnections(PostgreSQL())
-
-  print(all_cons)
-
-  for(con in all_cons)
-    +  dbDisconnect(con)
-
-  print(paste(length(all_cons), " connections killed."))
-}
-
-killDbConnections()
-###################################################
-
-list_of_open_connections <- dbListConnections(PostgreSQL())
-
-print(list_of_open_connections)
-
-#####################################################
-
-test_SQL_query <- function(){
-  con <- get_connection_SQL()
-  
-  get_data <- dbGetQuery(con, "SELECT account_id, count(type) as count_users from disp group by account_id")
-  
-  return(get_data)
-}
-
-test_data <- test_SQL_query()
-
-dbDisconnect(con)
-
-````
-
-
-````{r}
-
-db_connection_checker_killer <- function(){
-  ## Check Connections, wenn zu viele offen dann zu.
-  list_of_open_connections <- dbListConnections(PostgreSQL())
-  
-  if(length(list_of_open_connections) > 2) {
-    for(con in list_of_open_connections){
-      dbDisconnect(con)
-    }
-  }
-}
-
-db_connection_checker_killer()
-
-
-````
 

@@ -1,18 +1,43 @@
-```{r child = '../header.Rmd'}
+---
+title: "Analyse zu «HS19C2 - Cross-Selling in Banking»"
+author:
+  - Lukas Gehrig, Simon Stähli, Lukas Märki
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+output:
+  html_document:
+    df_print: paged
+    css: style.css
+  pdf_document: default
+---
+
+```{r message=FALSE, echo=FALSE}
+source('inc/header.R')
 ```
 
+Aufgabestellung, Infos, etc. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+
+# Kunden
+
+## Verteilung aller Kunden pro Alter
 ```{r echo=FALSE}
-library(ggplot2)
-source('../helpers/prepareData.R')
+data_all_clients <- get_all_clients()
+ggplot(data_all_clients, aes(x=age)) + 
+  geom_histogram(binwidth=4)
 ```
 
+## Anteil Kunden pro Geschlecht
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
-head(data_count_by_gender)
+ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=count), vjust=0)
 ```
+
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
 
+# Karten
 
+## Anzahl Karten pro Kartentyp
 ```{r echo=FALSE}
 data_card_count_by_card_type <- get_card_count_by_card_type()
 ggplot(data_card_count_by_card_type, aes(x=type, y=count)) + 
@@ -26,11 +51,14 @@ Insgesamt sind 892 Kreditkarten im Umlauf:
 * 145 Junior
 * 88 Gold.
 
-
+## Verteilung der Kreditkarten pro Account und Disponent
 ```{r echo=FALSE}
 data_distinct_accounts_by_card <- get_distinct_accounts_by_card()
-print(data_distinct_accounts_by_card)
+ggplot(data_distinct_accounts_by_card, aes(x=accounts, y=count)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=count), vjust=0)
 ```
+
 Kein Konto hat mehrere Kreditkarten. (892 verschiedene Konten)
 
 ```{r echo=FALSE}
@@ -40,9 +68,11 @@ ggplot(data_card_count_by_disp_type, aes(x=type, y=count)) +
   geom_text(aes(label=count), vjust=0)
 ```
 
-Alle Kartenbesitzer sind auch Inhaber der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  
-Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.
+Alle Kartenbesitzer sind auch Inhaber (Owner) der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  
+Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.  
+Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nicht bereits so gehandhabt wurde.
 
+## Altersverteilung beim Ausstelldatum der Kreditkarte.
 ```{r echo=FALSE}
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
 
@@ -50,7 +80,6 @@ ggplot(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issu
   geom_freqpoly(binwidth=4)
 ```
 
-Altersverteilung beim Ausstelldatum der Kreditkarte.  
 Gemäss den Daten wird die Junior-Kreditkarte nur an unter 25 Jährige vergeben.
 Da laut den Daten 55 Kunden unter 18 Jahren sind welche eine Kreditkarte erhalten haben, scheint es erlaubt zu sein, Kreditkarten an nicht volljährige Personen zu vergeben.
 
@@ -68,9 +97,11 @@ ggplot() +
 
 Die blaue Linie ist das Alter der Kunden bei ausstellung der Kreditkarte. Die rote Linie sind alle Kunden und Alter welche keine Kreditkarte haben zum Stichtag 31.12.1998.
 
-Da ausgestellte Kreditkarten ab 55-jährige rasant abnimmt, macht es keinen Sinn, über 55 Jährige die Kreditkarte zu bewerben. Dasch jo mol en hässliche Satz. Die rote Linie sind die nichtkäufer übrigens.
+Da ausgestellte Kreditkarten ab 55-jährige rasant abnimmt, macht es keinen Sinn, über 55 Jährige die Kreditkarte zu bewerben.
 
-Insgesamt gibt es 514 Clients welche Besitzer (owner) eines Accounts sind, welche keine Kreditkarte besitzen und unter 25 Jahre sind.  
+## Kunden ohne Kreditkarten
+
+Insgesamt gibt es 514 Clients welche Besitzer (owner) eines Accounts sind, welche keine Kreditkarte besitzen und unter 25 Jahre sind. Dies wären potentielle Kunden für die Junior-Kreditkarte.  
 Die ersten 6:
 ```{r echo=FALSE}
 data_clients_wihtout_credit_card_by_age_range_0_25 <- get_clients_without_credit_card_by_age_range(0, 25)
@@ -85,6 +116,7 @@ data_clients_wihtout_credit_card_by_age_range_24_100 <- get_clients_without_cred
 head(data_clients_wihtout_credit_card_by_age_range_24_100)
 ```
 
-
-```{r child = '../footer.Rmd'}
+```{r echo=FALSE}
+disconnect()
 ```
+

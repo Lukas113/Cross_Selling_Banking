@@ -9,6 +9,9 @@ library(tidyverse)
 library(RPostgreSQL)
 library(zoo)
 library(hrbrthemes)
+library(lubridate)
+library(ggpubr)
+library(viridis)
 source('../helpers/transformation.R')
 ```
 
@@ -317,7 +320,7 @@ plot_balance_change <- function(trans_frame, account_frame, disp_frame, card_fra
   flow_monthly <- ggplot2::ggplot(data = df_cbcc, aes(x = monthly_change, group = card_type, fill = card_type)) +
     ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
     ggplot2::xlab('money') +
-    ggplot2::ggtitle('Monthly Flow of Money until the Card is Issued') +
+    ggplot2::ggtitle('Monthly Average Flow of Money until the Card is Issued') +
     hrbrthemes::theme_ipsum() +
     ggplot2::scale_x_continuous(labels = scales::comma) +
     ggplot2::facet_wrap(~ trans_type)
@@ -332,7 +335,7 @@ plot_balance_change <- function(trans_frame, account_frame, disp_frame, card_fra
   balance_delta_monthly <- ggplot2::ggplot(data = df_vydaj, aes(x = monthly_balance_delta_change, group = card_type, fill = card_type)) +
     ggplot2::geom_density(adjust = 1.5, alpha = 0.4) +
     ggplot2::xlab('money') +
-    ggplot2::ggtitle('Monthly Balance Change until the Card is Issued') +
+    ggplot2::ggtitle('Monthly Average Balance Change until the Card is Issued') +
     hrbrthemes::theme_ipsum() +
     ggplot2::scale_x_continuous(labels = scales::comma)
   
@@ -364,7 +367,8 @@ check_balance_change_estimation <- function(){
     dplyr::filter(delta < 250)
   
   comparison_plot <- ggplot2::ggplot(comparison_frame_altered, aes(delta)) +
-    ggplot2::geom_histogram(aes(y = ..count..), binwidth = 5, fill = "skyblue")
+    ggplot2::geom_histogram(aes(y = ..count..), binwidth = 5, fill = "skyblue") +
+    ggplot2::labs(title = 'Delta Estimated Balance Comparison')
   
   print(base::summary.data.frame(comparison_frame %>% dplyr::select(-account_id)))
   print(comparison_plot)
@@ -372,16 +376,19 @@ check_balance_change_estimation <- function(){
 
 check_balance_change_estimation()
 ```
+Die Genauigkeit des geschätzten Vermögens und der Geldflüsse ist ziemlich gut. Die meisten Abweichungen liegen zwischen den Werten 5.4 und 17.0. Die Maximaldifferenz liegt bei 1200.3. Diese ist dadurch erklärbar, da es sich bei den abgefragten Vermögensendbeständen (balance) auch nur um Schätzwerte handelt, da die Transaktionen nicht sauber sortiert werden konnten.
 
 
 #### Einkommen und Vermögen verglichen mit Kreditkarten
 Total Flow of Money until the Card is Issued:
-- Es ist ersichtlich, dass Kunden, die eine Goldkarte besitzen, einen
+- Es ist interessant zu wissen, falls jemand ein interessanter Kunde für eine Kreditkarte ist, für welche Karte (typ) dieser am meisten geeignet ist. Dazu sind Analysen auf Unterschiede der Vermögen und Vermögensveränderungen zwischen den einzelnen Kartentypen interessant.
 ```{r echo = TRUE, warning = FALSE, fig.width = 10}
 plot_balance_change(trans_altered, account_altered, disp_altered, card_altered)
 ```
+Es ist ersichtlich, dass Kunden mit einer höher gestuften Karte zum Zeitpunkt des Erwerbes der Karte tendenziell ein höheres Einkommen sowie höhere Vermögenszu- und Abflüsse hatten.
 
 
+#### Orders ohne Transaktionen
 
 ```{r echo = TRUE, fig.width = 10}
 validate_orders <- function(orders_frame, account_frame, trans_frame, combined = FALSE){
@@ -431,26 +438,225 @@ visualize_orders_validation <- function(orders_frame, account_frame, trans_frame
 visualize_orders_validation(orders_altered, account_altered, trans_altered)
 ```
 
+Uns ist aufgefallen, dass ein kleiner Teil der Orders nicht in "trans" enthalten sind. Es ist ebenfalls ersichtlich, dass die Orders 'LEASING' nicht eine ausgeführte Transaktion besitzt, obwohl die Zielbank- und Account in 'orders' definiert sind. Dies ist wahrscheinlich ein Fehler in der Datenbank.
 
 
-#### Transaktionstype-analyse 
-```{r echo = FALSE}
-analyze_transactions <- function(trans_frame){
-  frame <- trans_frame %>%
-    dplyr::arrange(account_id, trans_date, desc(trans_id)) %>%
-    dplyr::group_by(account_id) %>%
-    dplyr::mutate(balance_diff = (balance - dplyr::lag(balance))) %>%
-    dplyr::filter(round2(abs(balance_diff), 0) == trans_amount) %>% #ensures to just consider 100% correct calculated balance_diff
-    dplyr::filter(trans_type == 'PRIJEM') %>%
-    dplyr::filter(balance_diff <= 0)
+#### Vermögen und Geldflüsse der Kunden, die 1998 eine Kreditkarte erworben hatten
+
+Hier werden Kunden, die im Jahr 1998 eine Kreditkarte erworben haben mit Kunden Ende 1998 verglichen, um Unterschiede und Gemeinsamkeiten bezüglich des Vermögens und der Geldflüsse festzustellen.
+
+```{r echo = TRUE}
+get_balance_inf <- function(trans_frame){
+  balances <- balance_account(trans_frame)
+  inflow_outflow <- trans_frame %>%
+    dplyr::group_by(account_id, trans_type) %>%
+    dplyr::summarise(balance_change = sum(trans_amount))
   
-  return(frame)
+  inflow_outflow$balance_delta <- (as.numeric(unlist(by(inflow_outflow$balance_change, inflow_outflow$account_id, balance_delta)))*-1)
+  
+   inflow_outflow <- inflow_outflow %>%
+     dplyr::group_by(account_id) %>%
+     dplyr::mutate(VYDAJ = balance_change, PRIJEM = dplyr::lag(balance_change)) %>%
+     dplyr::select(account_id, VYDAJ, PRIJEM, balance_delta) %>%
+     dplyr::filter(!is.na(PRIJEM)) %>%
+     dplyr::inner_join(balances, by = 'account_id') %>%
+     dplyr::select(account_id, account_date, VYDAJ, PRIJEM, balance_delta, balance, card_type, account_divisor_months)
+  
+  return(inflow_outflow)
 }
 
-#)analyze_transactions(trans_altered)
+card_purch_comp <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date){
+  inc_offset_days <- (ending_date - start_date) + 1
+  month_diff <- (zoo::as.yearmon(ending_date) - zoo::as.yearmon(start_date)) * 12 + 1
+  
+  account_cards <- account_frame %>%
+    dplyr::inner_join(disp_frame, by = 'account_id') %>%
+    dplyr::filter(disp_type == 'OWNER') %>%
+    dplyr::left_join(cards_frame, by = 'disp_id') %>%
+    dplyr::select(account_id, account_date, frequency, account_date, card_type, issued)
+  
+  #time frame (card-issued minus day_difference(start_date, ending_date)) until card-issued 
+  accounts_with_cards <- account_cards %>%
+    dplyr::filter(!is.na(card_type)) %>%
+    dplyr::filter(issued >= start_date & issued <= ending_date) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= issued & trans_date > (issued - inc_offset_days)) %>%
+    dplyr::mutate(account_divisor_months = min(((zoo::as.yearmon(issued) - zoo::as.yearmon(account_date)) * 12 + 1), month_diff))
+  
+  #time-frame start_date until end_date
+  accounts_without_cards <- account_cards %>%
+    dplyr::filter(is.na(card_type)) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= ending_date & trans_date >= start_date) %>%
+    dplyr::select(-issued) %>%
+    dplyr::mutate(account_divisor_months = min(((zoo::as.yearmon(ending_date) - zoo::as.yearmon(account_date)) * 12 + 1), month_diff))
+  
+  balance_inf_without_cards <- get_balance_inf(accounts_without_cards)
+  balance_inf_with_cards <- get_balance_inf(accounts_with_cards)
+  
+  result_frame <- balance_inf_without_cards %>%
+    dplyr::union(balance_inf_with_cards) %>%
+    dplyr::mutate(monthly_VYDAJ = (VYDAJ / account_divisor_months), monthly_PRIJEM = (PRIJEM / account_divisor_months),
+                  monthly_balance_delta = (balance_delta / account_divisor_months), 
+                  avg_balance = balance - (monthly_balance_delta * (account_divisor_months / 2))) %>%
+    dplyr::ungroup()
+  
+  result_frame$card_type[is.na(result_frame$card_type)] <- 'no_card'
+  
+  return(result_frame)
+}
+
+#card_purch_comp(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'))
 ```
 
 
+```{r warning = FALSE, fig.width = 8}
+plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date, var_1, var_2, var_3, var_4, var_5, stat_inf){
+  #' @description provides credit card specific plots in the global environment with the given var_<number> names & the according statistical information in the given var_<number>_summary variables.
+  #' credit card holders with purchase in the specified period were considered as well as their information from the time of credit card purchase - length of the specified timeframe
+  #' for non-credit card holders, the data is taken into account throughout the specified time interval
+  #' - balance_total at the end of the timeframe
+  #' - balance_average (begin_balance + end_balance) / 2 --- customers who weren't there from the beginning of the timeframe were filtered out.
+  #' - balance_change monthly during the specified timeframe
+  #' - flow_VYDAJ means monthly withdrawal of money in the specified timeframe
+  #' - flow_PRIJEM means monthly inflow of money in the specified timeframe
+  month_diff <- (zoo::as.yearmon(ending_date) - zoo::as.yearmon(start_date)) * 12 + 1
+  prep_frame <- card_purch_comp(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date)
+  adjust <- 1
+  alpha <- 0.4
+  violin_width = 1.1
+  
+  balance_total <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = balance, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = 0.1, color = 'grey', alpha = 0.2) +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
+    ggplot2::ggtitle(paste0('Total Balance ', ending_date)) +
+    ggplot2::scale_y_continuous(labels = scales::comma)
+  # balance_total <- ggplot2::ggplot(data = prep_frame, aes(x = balance, group = card_type, fill = card_type)) +
+  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
+  #   ggplot2::xlab('money') +
+  #   ggplot2::ggtitle(paste0('Total Balance ', ending_date)) +
+  #   hrbrthemes::theme_ipsum() +
+  #   ggplot2::scale_x_continuous(labels = scales::comma)
+    
+  #estimated avg balance (Opening balance + closing balance / 2) of the time frame
+  prep_frame_altered <- prep_frame %>% dplyr::filter(account_divisor_months == month_diff)
+  balance_avg <- ggplot2::ggplot(data = prep_frame_altered, aes(x = card_type, y = avg_balance, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = 0.1, color = 'grey', alpha = 0.2) +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
+    ggplot2::ggtitle(paste0('Avg Balance ', start_date, ' / ', ending_date)) +
+    ggplot2::scale_y_continuous(labels = scales::comma)
+  # balance_avg <- ggplot2::ggplot(data = prep_frame_altered, aes(x = avg_balance, group = card_type, fill = card_type)) +
+  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
+  #   ggplot2::xlab('money') +
+  #   ggplot2::ggtitle(paste0('Avg Balance ', start_date, ' / ', ending_date)) +
+  #   hrbrthemes::theme_ipsum() +
+  #   ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  balance_change <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_balance_delta, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = 0.1, color = 'grey', alpha = 0.2) +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
+    ggplot2::ggtitle(paste0('Avg Monthly Balance Change ', start_date, ' / ', ending_date)) +
+    ggplot2::scale_y_continuous(labels = scales::comma)
+  # balance_change <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_balance_delta, group = card_type, fill = card_type)) +
+  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
+  #   ggplot2::xlab('money') +
+  #   ggplot2::ggtitle(paste0('Avg Monthly Balance Change ', start_date, ' / ', ending_date)) +
+  #   hrbrthemes::theme_ipsum() +
+  #   ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  flow_VYDAJ <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_VYDAJ, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = 0.1, color = 'grey', alpha = 0.2) +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
+    ggplot2::ggtitle(paste0('Avg Monthly Withdrawal ', start_date, ' / ', ending_date)) +
+    ggplot2::scale_y_continuous(labels = scales::comma)
+  # flow_VYDAJ <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_VYDAJ, group = card_type, fill = card_type)) +
+  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
+  #   ggplot2::xlab('money') +
+  #   ggplot2::ggtitle(paste0('Avg Monthly Withdrawal ', start_date, ' / ', ending_date)) +
+  #   hrbrthemes::theme_ipsum() +
+  #   ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  flow_PRIJEM <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_PRIJEM, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = 0.1, color = 'grey', alpha = 0.2) +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
+    ggplot2::ggtitle(paste0('Avg Monthly Inflow ', start_date, ' / ', ending_date)) +
+    ggplot2::scale_y_continuous(labels = scales::comma)
+  # flow_PRIJEM <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_PRIJEM, group = card_type, fill = card_type)) +
+  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
+  #   ggplot2::xlab('money') +
+  #   ggplot2::ggtitle(paste0('Avg Monthly Inflow ', start_date, ' / ', ending_date)) +
+  #   hrbrthemes::theme_ipsum() +
+  #   ggplot2::scale_x_continuous(labels = scales::comma)
+  
+  balance_total_summary <- tapply(prep_frame$balance, prep_frame$card_type, summary)
+  balance_avg_summary <- tapply(prep_frame_altered$avg_balance, prep_frame_altered$card_type, summary)
+  balance_change_summary <- tapply(prep_frame$monthly_balance_delta, prep_frame$card_type, summary)
+  flow_VYDAJ_summary <- tapply(prep_frame$monthly_VYDAJ, prep_frame$card_type, summary)
+  flow_PRIJEM_summary <- tapply(prep_frame$monthly_PRIJEM, prep_frame$card_type, summary)
+  
+  counts <- prep_frame %>%
+    dplyr::group_by(card_type) %>%
+    dplyr::count()
+  
+  #assign plots to .GlobalEnv
+  assign(var_1, balance_total, envir = .GlobalEnv)
+  assign(paste0(var_1, '_summary'), balance_total_summary, envir = .GlobalEnv)
+  assign(var_2, balance_avg, envir = .GlobalEnv)
+  assign(paste0(var_2, '_summary'), balance_avg_summary, envir = .GlobalEnv)
+  assign(var_3, balance_change, envir = .GlobalEnv)
+  assign(paste0(var_3, '_summary'), balance_change_summary, envir = .GlobalEnv)
+  assign(var_4, flow_VYDAJ, envir = .GlobalEnv)
+  assign(paste0(var_4, '_summary'), flow_VYDAJ_summary, envir = .GlobalEnv)
+  assign(var_5, flow_PRIJEM, envir = .GlobalEnv)
+  assign(paste0(var_5, '_summary'), flow_PRIJEM_summary, envir = .GlobalEnv)
+  assign(stat_inf, counts, envir = .GlobalEnv)
+}
+plot_balance_cards_comp(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'), 'balance_total_1998', 'balance_avg_1998', 'balance_change_1998', 'flow_VYDAJ_1998', 'flow_PRIJEM_1998', 'counts_1998')
+```
+
+#### Results on `r counts_1998$n[1]` classic, `r counts_1998$n[2]` gold, `r counts_1998$n[3]` junior and `r counts_1998$n[4]` no_cards Customers from 1998
+
+```{r echo = FALSE, warning = FALSE}
+balance_total_1998
+balance_total_1998_summary
+```
+
+```{r echo = FALSE, warning = FALSE}
+balance_avg_1998
+balance_avg_1998_summary
+```
+
+```{r echo = FALSE, warning = FALSE}
+balance_change_1998
+balance_change_1998_summary
+```
+
+```{r echo = FALSE, warning = FALSE}
+flow_VYDAJ_1998
+flow_VYDAJ_1998_summary
+```
+
+```{r echo = FALSE, warning = FALSE}
+flow_PRIJEM_1998
+flow_PRIJEM_1998_summary
+```
 
 
 

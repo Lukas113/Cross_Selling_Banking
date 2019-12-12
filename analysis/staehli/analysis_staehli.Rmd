@@ -104,6 +104,24 @@ from district
 
 ### Untersuchung table "loans"
 
+
+```{r}
+account_loans <- as_tibble(get_account_loans()) 
+head(account_loans)
+
+account_loans %>%
+  ggplot(aes(x = count, fill = count)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  scale_x_continuous(breaks = c(0, 1),labels = c("Accounts without Loan", "Accounts with Loan")) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
+  labs(title = "Accounts with Loans and without Loans") +
+  xlab(label = "") +
+  ylab(label = "Amount of Accounts")
+
+
+```
+
+
 ```{sql connection=con, output.var = "accounts_loans", echo = FALSE}
 
 SELECT account.account_id, account.district_id,

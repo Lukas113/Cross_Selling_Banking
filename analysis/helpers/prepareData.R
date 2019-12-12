@@ -247,5 +247,11 @@ get_owner_disp <- function(){
   return(data)
 }
 
-
+get_account_loans <- function(){
+  data <- dbGetQuery(con, "select account.account_id, count(loan.loan_id)
+  from account
+  Left join loan on account.account_id = loan.account_id
+  group by account.account_id")
+  return(data)
+}
 

@@ -12,6 +12,7 @@ library(hrbrthemes)
 library(lubridate)
 library(ggpubr)
 library(viridis)
+library(RPostgreSQL)
 source('../helpers/transformation.R')
 ```
 
@@ -34,17 +35,43 @@ Zusätzlich sind die einzelnen Transaktionen nicht mit einem timestamp versehen,
 
 Da die Datensätze relativ klein sind, erschien es mir sinnvoll, die Tables als R-Objekte lokal abzuspeichern, um diese danach lokal zu bearbeiten.
 ```{r echo = FALSE}
-load(file = '../objects/account.rda')
-load(file = '../objects/card.rda')
-load(file = '../objects/client.rda')
-load(file = '../objects/disp.rda')
-load(file = '../objects/district.rda')
-load(file = '../objects/loan.rda')
-load(file = '../objects/orders.rda')
-load(file = '../objects/trans.rda')
+account_path <- '../objects/account.rda'
+card_path <- '../objects/card.rda'
+client_path <- '../objects/client.rda'
+disp_path <- '../objects/disp.rda'
+district_path <- '../objects/district.rda'
+loan_path <- '../objects/loan.rda'
+orders_path <- '../objects/orders.rda'
+trans_path <- '../objects/trans.rda'
+paths <- c(account_path, card_path, client_path, disp_path, district_path, loan_path, orders_path, trans_path)
+dir.create('../objects', showWarnings = FALSE)
+
+DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
+DB_PORT = 5432
+DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_USERNAME = 'db_user'
+DB_PASSWORD = 'db_user_pw'
+
+drv <- dbDriver("PostgreSQL")
+con <- dbConnect(drv, dbname = DB_DBNAME,
+                 host = DB_HOST, port = DB_PORT,
+                 user = DB_USERNAME, password = DB_PASSWORD)
+
+for (path in paths){
+  if (file.exists(path)){
+    load(file = path, envir = .GlobalEnv)
+  } else {
+    table_name <- unlist(strsplit(unlist(strsplit(path, '/'))[3], '.rda'))
+    table <- dbGetQuery(con, paste0('SELECT * FROM ', table_name))
+    assign(table_name, table, envir = .GlobalEnv)
+    save(table, file = path)
+  }
+}
+
+dbDisconnect(con)
 ```
 
-```{r echo = TRUE}
+```{r echo = FALSE}
 lowest_trans_date <- as.Date('1993-01-01')
 lowest_year <- 1993
 highest_trans_date <- as.Date('1998-12-31')
@@ -123,13 +150,17 @@ analyze_na <- function(frame){
 
 analyze_na(trans)
 ```
+
 Die gefundenen Kombinationen scheinen vorerst keine besondere Bedeutung zu haben.
 
-#### Trans `type`
+#### Trans Type
 In diesem Abschnitt wird der `type` der Transaktionstabelle untersucht, da während der Vermögensanalyse grosse unstimmigkeiten bezüglich der Vermögensanalyse aufgefallen sind.
 Gemäss der Beschreibung sind folgende Werte definiert:
+
 - 'PRIJEM' stands for credit 
+
 - 'VYDAJ' stands for withdrawal
+
 Jedoch ist in der Datenbank ein dritter `type` 'VYBER' (n=16666) vorhanden. Dieser wird für eine vereinfachte Analyse auf 'VYDAJ' umgewandelt, was bedenkenlos gemacht werden kann, da 'VYBER' in `type` nicht definiert ist und die geschätzten Vermögen aufgund der Konto Ein- und Ausgänge dem Kontostand `balance` des letzten Tages ziemlich Nahe kommen (siehe 'Delta Estimated Balance Comparison').
 ```{r echo = TRUE}
 trans_type_vyber <- function(trans_frame){
@@ -219,6 +250,7 @@ visualize_orders_validation <- function(orders_frame, account_frame, trans_frame
 
 visualize_orders_validation(orders_altered, account_altered, trans_altered)
 ```
+
 Die meisten "orders" sind in "trans" mindestens einmal ausgeführt worden. Jedoch wurde bei fast 400 "orders" niemals eine Transaktion ausgeführt. Ein Teil davon ist erklärbar, da es möglich ist, dass einige "orders" erst kürzlich erfasst wurden, und somit nie eine Zahlung ausgeführt werden konnte. Es ist jedoch überraschend auffällig, dass keine einzige `k_symbol` 'LEASING' ausgeführt wurde, obwohl in "orders" immer der `account_to`, `bank` und `amount` angegeben ist.
 
 Es wurde bereits erwähnt, dass der Verlauf der IDs diverser Tabellen nicht natürlich dem Zeitverlauf entsprechen. Daraus folgt, dass die DB künstlich im Nachhinein aufgesetzt wurde. Wir nehmen an, dass das Fehlen sämtlicher Orders 'LEASING' ein Fehler in der DB ist, das bei der Erstellung nicht genügend berücksichtigt wurde.
@@ -228,6 +260,7 @@ Es wurde bereits erwähnt, dass der Verlauf der IDs diverser Tabellen nicht nat�
 Um eine Übersicht über die Vermögensverhältnisse der Bankkunden zu erhalten, wird hier das Vermögen der Kunden am 31.12.1998 sowie einiger statistischer Kennwerte ausgewiesen. Dies dient einerseits der Validierung und ist zugleich ein Vergleichswert späterer Analysen.
 Um die Vermögensverteilung adequat auszuweisen, wird auf eine multivariate Darstellung verzichtet, und eine Kernel-Density-Estimation (KDE) über die Verteilung gezogen. Dies wiederspiegelt nicht genau die wahren Dichteverhältnisse der Verteilung. Sie hilft jedoch, schnell und einfach einen Überblick über die Vermögensverteilung zu erhalten.
 Es ist wichtig zu erwähnen, dass es sich hierbei um geschätzte Endvermögen handelt, d.h. es können kleinere Abweichungen vom realen Endvermögen entstehen, da die in "Erste Erkentnisse" erwähnten Sortierungsprobleme hier eine Rolle spielen. Die Abweichungen sollten sich jedoch im Rahmen halten, wie in "Delta Estimated Balance Comparsion" ersichtlich ist.
+
 ```{r echo = TRUE}
 balance_account <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date){
   min_date <- as.Date(min_date)
@@ -255,22 +288,29 @@ base::summary(b_acc$balance)
 balance_dist <- balance_distribution(trans_altered)
 balance_dist
 ```
+
 Eine Minderheit der Accounts hat ein negatives Saldo auszuweisen. Dies ist am klaren Anstieg der Dichtekurve der Vermögensverteilung nach dem Nullpunkt ersichtlich. Der Modus befindet sich etwa bei 25'000 Kronen, welcher sich unter dem Median (38495) und Mittelwert (43809) befindet, da die Kurve klar rechtsschief ist. Die meisten Accounts haben zwischen 10'000 und 100'000 Kronen Vermögen auszuweisen.
 Da es nach oben und unten keine wirklichen Ausreisser hat, schliesse ich daraus, dass es wahrscheinlich entweder ein nicht zufälliger selektierter Teilausschnitt einer Datenbank ist, oder die Daten komplett random generiert wurden.
 
 #### Vermögenverhältnisse der Bank über mehrere Jahre
+
 Als nächstes wird untersucht, ob die Bank über die letzten Jahre eine Veränderung bezüglich der Vermögensverteilung der Bankkunden erlebt hat. Hierbei ist somit nicht die absolute Vermögensveränderung der Bank von interesse, sondern, ob sich der Kundenstamm bezüglich Vermögen in den letzten Jahren verändert hat. Ausgewiesen wird hierbei das geschätzte Vermögen des Kundenstamms auf Jahresende.
+
 ```{r echo = TRUE}
 for (year in lowest_year:highest_year) {
   b_dist <- balance_distribution(trans_altered, max_date = ending_date(year))
   print(b_dist)
 }
 ```
+
 Es ist zu erkennen, dass die Bank über den observierten Zeitraum von 6 Jahren immer eine ähnliche Vermögensverteilung der Kunden aufweist. Somit ist erwiesen, dass sich der Kundenstamm über die letzten Jahre bezüglich Vermögen nicht signifikant verändert hat.
 
 #### Produkteselektion Cross-Selling
+
 Gemäss unserem Auftrag müssen wir mit bestehenden Produkten einen Mehrwert an bestehende Kunden generieren, also Cross-Selling betreiben. Gemäss dem Entity Relationship Model (ERD) und der darauf basierenden Datenanalyse bezüglich dem Kundenanteil, die dieses Produkt bereits haben, haben wir 2 potentielle Produkte evaluiert:
+
 - Loan
+
 - Kreditkarten
 
 Beide haben gemäss der Datenanalyse von Simon und Lukas (Märki) einen tiefen Durchdringungsgrad im bestehenden Kundenstamm, und sind somit beide lukrativ.
@@ -279,6 +319,7 @@ Wir fokusieren unsere weitere Arbeit auf Kreditkarten, da wir der Auffassung sin
 Wir halten es nicht für sinnvoll, jemandem eine Loan zu verkaufen, da dieses Bedürfnis eher vom Kunden her selbst kommt. Von Kreditkarten jedoch kann beinahe jeder Kunde profitieren, da diese in einigen Bereichen das Leben vereinfacht und keine wirklichen Nachteile mit sich zieht. Daher fokussiert sich unsere künftigen Analysen auf Kreditkarten.
 
 #### Card Ownership
+
 Uns interessiert, wie bisher die Kreditkartenvergabe stattgefunden hat. Die Kunden können in die Typen 'OWNER' und 'DISPONENT' eingeteilt werden. Zusätzlich ist die Verteilung der verschiedenen Typen der Karte von Interesse.
 ```{r echo = TRUE}
 card_ownership <- function(card_frame, disp_frame){
@@ -291,6 +332,7 @@ card_ownership <- function(card_frame, disp_frame){
 
 card_ownership(card_frame = card_altered, disp_frame = disp_altered)
 ```
+
 Das Ergebnis überrascht. Hier ist ersichtlich, dass nur 'OWNER' eines Accounts eine Kreditkarte besitzen. Dies ist so nicht aus der Beschreibung her ersichtlich.
 Auch die Verteilung der Karten unterscheidet sich stark. Der `card_type` 'classic' ist relativ gesehen stark übervertreten. Da 'gold' und 'junior' eine ziemlich kleine Dichte aufweisen, müssen wir bei der Wahl des Timeframes vorsichtig vorgehen, um noch genügend Kunden mit 'gold' und 'junior' in der Analyse mit dabei zu haben.
 
@@ -300,6 +342,7 @@ Zusätzlich kann sich die Analyse der verschiecenen Kartentypen auf die "account
 Einerseits ist es interessant, wie sich die Kartentypen `card_type` bezüglich Vermögen und Vermögensversänderung unterscheiden. Andererseits müssen wir auch untersuchen, wie sich die Kartenbesitzer von den nicht-Kartenbesitzer unterscheiden. Folglich werden die Daten entsprechend vorbereitet. Eine Beschreibung der Analyse ist bei den Plots angesiedelt.
 
 Erstellung des Daten-Frames zur monatlichen, jährlichen und absoluten Vermögensveränderung.
+
 ```{r echo = TRUE ,warning = FALSE}
 balance_delta <- function(balances){
   return(c(NA, diff(balances)))
@@ -426,6 +469,7 @@ plot_balance_change(trans_altered, account_altered, disp_altered, card_altered)
 
 Bevor mit weiteren Analysen auf Stufe Kreditkarte fortgefahren wird, ist es sinnvoll, die geschätzten Vermögen und Vermögensveränderungen zu validieren. Dies stellt sicher, dass angenommen werden kann, dass die in "trans" enthaltenen Transaktionen korrekt sind und um den geschätzten Werte entsprechend Gewicht beizumessen.
 Verglichen werden die Endwerte `balance` von den einzelnen "accounts" sowie der Addition aller Einnahmen `PRIJEM` und Subtraktion aller Ausgaben `VYDAJ`, welche in `balance_delta` ausgewiesen werden.
+
 ```{r echo = TRUE}
 check_balance_change_estimation <- function(){
   estimation <- customer_balance_change_estimation(trans_frame = trans_altered)
@@ -455,6 +499,7 @@ check_balance_change_estimation <- function(){
 
 check_balance_change_estimation()
 ```
+
 Die Abweichung des geschätzten Vermögens und der Geldflüsse ist relativ gesehen gering. Dies bestätigt die Korrektheit der in `amount` enthaltenen Transaktionswerte. Die meisten Abweichungen liegen zwischen den Werten 5.4 und 17.0. Die Maximaldifferenz liegt bei 1200.3. Die grösseren Abweichungen sind dadurch erklärbar, da es sich bei den abgefragten Vermögensendbeständen `balance` lediglich um Schätzwerte handelt, da die Transaktionen nicht sauber sortiert werden konnten. Die kleineren Abweichungen können dadurch erklärt werden, dass sich bei in `amount` um mathematisch korrekt gerunde Werte handelt. Die Summe all dieser Rundungsfehler kann bei mehreren Dutzend Transaktionen zu einer absoluten Abweichung im geschätzten Vermögen im zweistelligen Bereich führen.
 
 
@@ -465,36 +510,50 @@ Wir haben die Annahme, dass sich das Vermögen und die Vermögensveränderung de
 Diese Analyse hat den Zweck, um die Unterschiede zwischen den verschiedenen Kartentypen `card_type` aufzuzeigen, um Aussagen bezüglich Vermögen und Vermögensveränderungen auf potentielle Kunden bezüglich Kreditkarten machen zu können. Hierbei werden alle jemals erstellten Kreditkarten berücksichtigt.
 
 **Total Flow of Money until the Card is Issued**
+
 ```{r echo = TRUE, warning = FALSE, fig.width = 10}
 flow_total
 ```
+
 Die Totalen Kontoeinzahlungen und Auszüge sind ziemlich ähnlich, was nicht überraschend ist, da wir gemäss Vermögensanalyse keine Ausreisser haben. Bei dieser Analyse ist ersichtlich, dass es grosse Unterschiede zwischen den gesamten Vermögenszu- und Abflüsse zeischen 'gold' und den beiden anderen Kartentypen gibt. Diese Verteilung ist jedoch mit Vorsicht zu geniessen, da es "accounts", die nicht schon über einen längeren Zeitraum bei der Bank sind, entsprechend benachteiligt.
 
 **Monthly Average Flow of Money until the Card is Issued**
+
 ```{r echo = TRUE, warning = FALSE, fig.width = 10}
 flow_monthly
 ```
+
 Bei dieser Darstellung werden die Nachteile der *Total Flow of Money until the Card is Issued* Vermögensflüsse ausgehebelt, dass erst kürzlich beigetretene Bankkunden in der Analyse benachteiligt werden, da die Veränderungen auf den Durchschnitt pro Monat dargestellt werden. Es kann sogar sein, dass erst kürzlich der Bank beigetretene Kunden stärker gewichtet werden, da das Initial eingezahlte Vermögen tendenziell grösser sein kann, als die danach durchschnittlich ein- und ausbezahlten monatlichen Beträge.
 Nichtsdestotrotz zeichnet sich ein ähnliches Bild der jeweiligen Kartentypen an, wie bei *Total Flow of Money until the Card is Issued*.
 
 **Total Balance when the Card is Issued**
+
 ```{r echo = TRUE, warning = FALSE, fig.width = 10}
 balance_delta_total
 ```
+
 Hier zeigt es klare Unterschiede zwischen den jeweiligen Kartentypen bezüglich des Vermögens zum Zeitpunkt der Kreditkartenbeantragung. Vermögendere Kunden beziehen eher eine 'gold' Karte. Die 'classic' Kunden befinden sich im Mittelfeld. Am wenigsten Vermögen haben im Schnitt die 'junior' Kunden, wobei sich die 'junior' und 'classic' Kunden nicht so stark unterscheiden, wie die 'gold' Kunden zu den anderen Beiden.
 
 **Monthly Average Balance Change until the Card is Issued**
+
 ```{r echo = TRUE, warning = FALSE, fig.width = 10}
 balance_delta_monthly
 balance_delta_monthly_summary
 ```
+
 Hierbei wird die monatliche Vermögensveränderung, bevor die Karte beantragt wurde, berücksichtigt. Bei diesem Plot halten sich die Ausreisser in Grenzen, da bei jeder Kunde, der eine Kreditkarte beantragt hatte, mindestens 6 Monate Kunde war. Damit ist zwar sichergestellt, dass das Initial eingezahlte Vermögen hierbei einen reduzierteren Einfluss hat, trotzdem wird es stärker gewichtet, als bei Kunden, die bisher länger bei der Bank Kunden sind.
-Es gibt klare Unterschiede bezüglich Mittelwert aller drei Kartentypen sowie vom Median von 'junior' zu den anderen beiden Typen. Somit lässt sich daraus schliessen, dass Kunden, welche eine höheren mittleren Vermögenszuwachs haben, eher für eine höher gestufte Karte geeignet ist in der Annahme, dass die bisher vergebenen Kreditkarten gut verteilt wurden.
+Es gibt Unterschiede bezüglich Mittelwert aller drei Kartentypen sowie vom Median von 'junior' zu den anderen beiden Typen. Somit lässt sich daraus schliessen, dass Kunden, welche eine höheren mittleren Vermögenszuwachs haben, eher für eine höher gestufte Karte geeignet ist in der Annahme, dass die bisher vergebenen Kreditkarten gut verteilt wurden. Die Unterschiede halten sich jedoch in Grenzen.
 
 
-#### Vermögen und Geldflüsse der Kunden, die 1998 eine Kreditkarte erworben hatten
+#### Vermögen und Geldflüsse der Kunden, die 1998 eine Kreditkarte erwarben
 
-Hier werden Kunden, die im Jahr 1998 eine Kreditkarte erworben haben mit Kunden Ende 1998 verglichen, um Unterschiede und Gemeinsamkeiten bezüglich des Vermögens und der Geldflüsse festzustellen.
+Hier werden Kunden, die im Jahr 1998 eine Kreditkarte erworben haben mit Kunden Ende 1998 verglichen, um Unterschiede und Gemeinsamkeiten bezüglich des Vermögens und der Geldflüsse. Kunden wurden folgendermassen behandelt:
+
+- **Kreditkartenbesitzer**, die im Jahr 1998 eine Kreditkarte erwarben, wurden zum Zeitpunkt des Kreditkartenerwerbes minus 1 Jahr berücksichtigt. Somit sind die Daten der Kreditkartenbesitzer von 1997 - 1998.
+
+- **NICHT Kreditkartenbesitzer**, sind Anfangs bis Ende 1998 berücksichtigt worden.
+
+Das Timeframe ist so gewählt, dass die Kunden auf vernünftiger Weise miteinander verglichen werden können. Die maximale Abweichung der zu vergleichenden Datenobjekte beträgt somit maximal 1 Jahr.
 
 ```{r echo = TRUE}
 get_balance_inf <- function(trans_frame){
@@ -517,6 +576,9 @@ get_balance_inf <- function(trans_frame){
 }
 
 card_purch_comp <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date){
+  #' @description card purchasing comparison
+  #' prepares the dataframe respecting the accounts with a credit card and of accounts with no credit cards of the given time interval
+  #' considers the absolute and monthly balance data of the accounts
   inc_offset_days <- (ending_date - start_date) + 1
   month_diff <- (zoo::as.yearmon(ending_date) - zoo::as.yearmon(start_date)) * 12 + 1
   
@@ -587,14 +649,7 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
     ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
     ggplot2::ggtitle(paste0('Total Balance ', ending_date)) +
     ggplot2::scale_y_continuous(labels = scales::comma)
-  # balance_total <- ggplot2::ggplot(data = prep_frame, aes(x = balance, group = card_type, fill = card_type)) +
-  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
-  #   ggplot2::xlab('money') +
-  #   ggplot2::ggtitle(paste0('Total Balance ', ending_date)) +
-  #   hrbrthemes::theme_ipsum() +
-  #   ggplot2::scale_x_continuous(labels = scales::comma)
-    
-  #estimated avg balance (Opening balance + closing balance / 2) of the time frame
+
   prep_frame_altered <- prep_frame %>% dplyr::filter(account_divisor_months == month_diff)
   balance_avg <- ggplot2::ggplot(data = prep_frame_altered, aes(x = card_type, y = avg_balance, fill = card_type)) +
     ggplot2::geom_violin(width = violin_width) +
@@ -604,12 +659,6 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
     ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
     ggplot2::ggtitle(paste0('Avg Balance ', start_date, ' / ', ending_date)) +
     ggplot2::scale_y_continuous(labels = scales::comma)
-  # balance_avg <- ggplot2::ggplot(data = prep_frame_altered, aes(x = avg_balance, group = card_type, fill = card_type)) +
-  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
-  #   ggplot2::xlab('money') +
-  #   ggplot2::ggtitle(paste0('Avg Balance ', start_date, ' / ', ending_date)) +
-  #   hrbrthemes::theme_ipsum() +
-  #   ggplot2::scale_x_continuous(labels = scales::comma)
   
   balance_change <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_balance_delta, fill = card_type)) +
     ggplot2::geom_violin(width = violin_width) +
@@ -619,12 +668,6 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
     ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
     ggplot2::ggtitle(paste0('Avg Monthly Balance Change ', start_date, ' / ', ending_date)) +
     ggplot2::scale_y_continuous(labels = scales::comma)
-  # balance_change <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_balance_delta, group = card_type, fill = card_type)) +
-  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
-  #   ggplot2::xlab('money') +
-  #   ggplot2::ggtitle(paste0('Avg Monthly Balance Change ', start_date, ' / ', ending_date)) +
-  #   hrbrthemes::theme_ipsum() +
-  #   ggplot2::scale_x_continuous(labels = scales::comma)
   
   flow_VYDAJ <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_VYDAJ, fill = card_type)) +
     ggplot2::geom_violin(width = violin_width) +
@@ -634,12 +677,6 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
     ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
     ggplot2::ggtitle(paste0('Avg Monthly Withdrawal ', start_date, ' / ', ending_date)) +
     ggplot2::scale_y_continuous(labels = scales::comma)
-  # flow_VYDAJ <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_VYDAJ, group = card_type, fill = card_type)) +
-  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
-  #   ggplot2::xlab('money') +
-  #   ggplot2::ggtitle(paste0('Avg Monthly Withdrawal ', start_date, ' / ', ending_date)) +
-  #   hrbrthemes::theme_ipsum() +
-  #   ggplot2::scale_x_continuous(labels = scales::comma)
   
   flow_PRIJEM <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_PRIJEM, fill = card_type)) +
     ggplot2::geom_violin(width = violin_width) +
@@ -649,12 +686,6 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
     ggplot2::theme(legend.position = 'none', plot.title = element_text(size = 11)) +
     ggplot2::ggtitle(paste0('Avg Monthly Inflow ', start_date, ' / ', ending_date)) +
     ggplot2::scale_y_continuous(labels = scales::comma)
-  # flow_PRIJEM <- ggplot2::ggplot(data = prep_frame, aes(x = monthly_PRIJEM, group = card_type, fill = card_type)) +
-  #   ggplot2::geom_density(adjust = adjust, alpha = alpha) +
-  #   ggplot2::xlab('money') +
-  #   ggplot2::ggtitle(paste0('Avg Monthly Inflow ', start_date, ' / ', ending_date)) +
-  #   hrbrthemes::theme_ipsum() +
-  #   ggplot2::scale_x_continuous(labels = scales::comma)
   
   balance_total_summary <- tapply(prep_frame$balance, prep_frame$card_type, summary)
   balance_avg_summary <- tapply(prep_frame_altered$avg_balance, prep_frame_altered$card_type, summary)
@@ -682,35 +713,66 @@ plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, card
 plot_balance_cards_comp(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'), 'balance_total_1998', 'balance_avg_1998', 'balance_change_1998', 'flow_VYDAJ_1998', 'flow_PRIJEM_1998', 'counts_1998')
 ```
 
-#### Results on `r counts_1998$n[1]` classic, `r counts_1998$n[2]` gold, `r counts_1998$n[3]` junior and `r counts_1998$n[4]` no_cards Customers from 1998
+#### Results on `r counts_1998$n[1]` classic, `r counts_1998$n[2]` gold, `r counts_1998$n[3]` junior and `r counts_1998$n[4]` no_cards Accounts from 1998
+
+**Vermögen Total 1998**
 
 ```{r echo = FALSE, warning = FALSE}
 balance_total_1998
 balance_total_1998_summary
 ```
 
+Das Vermögen der "accounts" bezüglich Mittelwert und Median, welche eine Kreditkarte erwarben, verglichen mit denjenigen, welche ende 1998 noch keine Kreditkarten besitzen, unterscheidet sich signifikant. Ebenfalls fällt auf, dass kein einziger Account ein negatives Vermögen zum Zeitpunkt des Kreditkartenerwerbes hat. Auch die Quantile (1st und 3rd) sind bei den Kreditkartenerwerbern merklich höher.
+
+Auch das Vermögen derjenigen Accounts, welche 1998 eine Kreditkarte erworben haben, unterscheidet sich massgeblich. 'junior' Accounts haben eher tiefere statistische Werte verglichen mit 'accounts'. Am stärksten jedoch ist der Unterschied zwischen den 'gold' Karten verglichen mit den anderen beiden.
+
+Daraus lässt sich schliessen, dass Accounts, welche ein höheres Vermögen besitzen, sich eher für den Erwerb einer Kreditkarte eignen. Auch kann gesagt werden, dass wenn eine Kreditkarte beantragt wird, sich höhere Vermögen für eine höherwertige Kreditkarte eignen, wobei die Reihenfolge 'junior' < 'classic' < 'gold' ist.
+
+**Durchschnittliches Vermögen 1998**
+
 ```{r echo = FALSE, warning = FALSE}
 balance_avg_1998
 balance_avg_1998_summary
 ```
+
+Die Verteilung des durchschnittlichen Vermögens ist dem des *Total Balance 1998* sehr ähnlich. Hierbei wird der Mittelwert des Anfangs- und den des Endbestandes berücksichtigt. z.B. AB = 10'000 und EB = 20'000, somit ist das mittlere Vermögen (AB + EB) / 2 = 15'000. Da dies kein genauer Wert ist, sondern lediglich eine Schätzug, müssen Accounts, welche nicht über den ganzen Zeitraum Kunde sind, von der Analyse wegfallen. Dies, weil die Schätzung dieser Werte zu stark verfälscht sind, da der AB immer 0 ist, und somit das durchschnittliche Vermögen die Hälfte des EB ist, was offensichtlich ziemlich ungenau ist.
+
+Um einen Überblick über die korrekten durchschnittlichen Vermögen zu erhalten, wäre eine Gewichtung der `balance` jedes Accounts entsprechend der Dauer bis zur nächsten Transaktion des gleichen Accounts von Nöten. Also z.B. 10'000 Kronen sind genau 3 Tage auf dem Konto, wobei nach diesen 3 Tagen eine Transaktion folgt, wobei danach nur noch 5'000 Kronen für den Rest des Jahres auf dem Konto liegt. Das durchschnittliche Vermögen dieses Accounts wäre demnach $(3*10000 + 362*5000)/365\approx5041$. Aus zeitgründen wurde auf diese Analyse vereinfacht.
+
+Nichtsdestotrotz kann gesagt werden, dass Accounts mit einem höheren durschnittlichen Vermögen eher für eine Kreditkarte geeignet sind. Besonders fällt auf, dass Accounts, welche eine Kreditkarte erwarben, immer ein geschätztes durchschnittliches Vermögen von mehr als 10'000 Kronen besassen.
+
+**Durchschnittliche Monatliche Vermögensveränderung 1998**
 
 ```{r echo = FALSE, warning = FALSE}
 balance_change_1998
 balance_change_1998_summary
 ```
 
+Bei der durchschnittlichen monatlichen Vermögensveränderung 1998 ist ein klarer Unterschied zwischen Kreditkartenbesitzer und denjenigen, welche keine Besitzen klar ersichtlich bezüglich Median und Mittelwert.
+Daraus lässt sich schliessen, dass Accounts, welche über dem Mittelwert der monatlichen Vermögensveränderungen liegen, eher für eine Kreditkarten geeignet sind.
+
+Es gibt einige Ausreisser nach oben. Diese liegen jedoch gut im Bereich des möglichen, wenn man berücksichtigt, dass Kunden, welche noch nicht über dem Gesamtzeitraum des Timeframes bei der Bank sind, die Initialeinzahlung stärker gewichtet wird.
+
+**Durchschnittliche monatliche Geldabnahme 1998**
+
 ```{r echo = FALSE, warning = FALSE}
 flow_VYDAJ_1998
 flow_VYDAJ_1998_summary
 ```
+
+Vergleicht man sämtliche statistischen Werte (bis auf Max.) von `card_type` 'classic' und 'gold' mit denjenigen, welche keine Kreditkarten besitzen, unterscheiden sich diese erheblich. Aber auch 'junior' weist eher höhere Geldabnahmen aus als nicht Kartenbesitzer. Dies schliesst auf eine höhere Kontoaktivität bezüglich Geldmenge. D.h. die Accounts, welche eine Kreditkarte besitzen, sind eher aktive, also eher keine Sparkonten.
+
+**Durchschnittliche monatliche Geldzuflüsse 1998**
 
 ```{r echo = FALSE, warning = FALSE}
 flow_PRIJEM_1998
 flow_PRIJEM_1998_summary
 ```
 
+Auch hier unterscheiden sich MIttelwert und Median der durchschnittlichen monatlichen Geldzuflüsse der Kartenbesitzer erheblich gegenüber denjenigen, welche keine Karten besitzten. Es fällt zudem auf, dass alle, welche eine Kreditkarte erwarben, in den letzten 12 Monaten (oder weniger, wenn diese nicht seit 12 Monaten Kunden sind) keine inaktiven Accounts hatten. Sämtliche Accounts der Kreditkartenbesitzer haben vor dem Kartenerwerb Geldzuflüsse im vierstelligen Bereich oder höher zu verzeichnen.
+
+Berücksichtigt man die durchschnittlichen monatlichen Geldzu- und Abflüsse, schliesst sich daraus, dass aktivere Konten eher eine Kreditkarte erwarben. Die Höhe der Geldbeträge entsprechen zusätzlich den Kartentypen`card_type` 'junior' < 'classic' < 'gold'.
 
 
 
-#```{r child = '../footer.Rmd'}
-#```
+

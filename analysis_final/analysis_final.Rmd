@@ -35,7 +35,50 @@ ggplot(data_count_by_gender, aes(x=gender, y=count)) +
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
 
+# Schritte
+- Qualität und Representativität
+- 
+
+# Districts
+- S: Amount of Customers per Region with cards
+- S: Altersverteilung nach Regione Facets
+
+# Accounts
+
+## Vergleich Accounts mit owner gegenüber owner und disponent
+```{r echo=FALSE}
+data_owner_disp <- get_owner_disp()
+
+data_owner_disp %>%
+  ggplot(aes(x = count_users)) + 
+  geom_bar(fill = "lightblue", color = "black") +
+  geom_text(stat = "count", aes(label = ..count.. , vjust = -0.5) ) +
+  ylab(label = "amount") +
+  scale_x_continuous(breaks = c(1,2), labels = c("OWNER", "OWNER, DISPONENT"))
+```
+
+Man sieht, dass kein Konto mehr als ein Disponent hat.
+
+- S: Accounts mit Loans / ohne Loans
+- M: Line Plot mit den Summierungen von Accounts
+- G: Vermögen 98'
+
+# Loans
+- G: Beweis Account nur ein loan
+- S: Übersicht Loans mit Status
+- S: Loans über Jahr mit binwidth = 3
+- S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon.
+- S: Loan auf Geschlecht, Loan status. Das farbige.
+- S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
+
 # Karten
+- S: Number of counts for each service construct
+
+# Trans
+- G: Genauigkeitsüberprüfung
+- G: Analyse fehlende Werte
+- G: Warum VYBER?
+
 
 ## Anzahl Karten pro Kartentyp
 ```{r echo=FALSE}

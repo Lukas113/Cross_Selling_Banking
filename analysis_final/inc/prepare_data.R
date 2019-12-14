@@ -78,3 +78,9 @@ get_clients_without_credit_card_by_age_range <- function(from_age = 0, to_age = 
   order by account.account_id", from_age, to_age))
   return(data)
 }
+
+get_owner_disp <- function() {
+  check_connection()
+  data <- dbGetQuery(con, "SELECT account_id, count(type) as count_users from disp group by account_id")
+  return(data)
+}

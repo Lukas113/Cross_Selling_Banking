@@ -14,7 +14,8 @@ output:
 source('inc/header.R')
 ```
 
-Aufgabestellung, etc.
+Aufgabestellung, etc.  
+Kunde: Prof. Dr. Daniel Perruchoud
 
 # 1. Qualität und Representativität der Daten
 
@@ -31,12 +32,16 @@ ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
 
 Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
 
-## Verteilung aller Kunden pro Alter
+## Verteilung aller Kunden pro Alter (Stichtag: 31.12.1998)
 ```{r echo=FALSE}
-data_all_clients <- get_all_clients()
-ggplot(data_all_clients, aes(x=age)) + 
-  geom_histogram(binwidth=4)
+data_all_clients_age <- get_all_clients_age()
+ggplot(data_all_clients_age, aes(x=age)) + 
+  geom_histogram(binwidth=5) +
+  scale_x_continuous(breaks = seq(0, 100, 10)) +
+  labs(x='Alter', y='Anzahl')
 ```
+
+
 
 ## Anteil Kunden pro Geschlecht
 ```{r echo=FALSE}

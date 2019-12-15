@@ -4,23 +4,12 @@ get_accounts_running_total <- function() {
   return(data)
 }
 
-get_all_clients <- function() {
+get_all_clients_age <- function() {
   check_connection()
-  data = dbGetQuery(con, "SELECT *,
-	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
-		'f'
-	ELSE
-		'm'
-	END as gender,
-	CASE WHEN MOD(birth_number / 100, 100) > 50 THEN
-		TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD')
-	ELSE
-		TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD')
-	END as birthdate,
-	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age
-  FROM client")
+  data = dbGetQuery(con, "SELECT EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age FROM client")
   return(data)
 }
+
 
 get_count_by_gender <- function() {
   check_connection()

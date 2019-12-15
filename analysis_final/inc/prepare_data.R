@@ -1,3 +1,9 @@
+get_accounts_running_total <- function() {
+  check_connection()
+  data = dbGetQuery(con, "SELECT date, SUM(SUM(1)) OVER(ORDER BY date) AS accounts_running_total FROM account GROUP BY date")
+  return(data)
+}
+
 get_all_clients <- function() {
   check_connection()
   data = dbGetQuery(con, "SELECT *,

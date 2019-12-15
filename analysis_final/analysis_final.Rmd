@@ -14,9 +14,22 @@ output:
 source('inc/header.R')
 ```
 
-Aufgabestellung, Infos, etc. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+Aufgabestellung, etc.
 
-# Kunden
+# 1. Qualität und Representativität der Daten
+
+In den Daten sind alle Konten enthalten, welche im Zeitraum von 1.1.1993 bis 29.12.1997 eröffnet worden sind. Insgesamt sind 4'500 Konten in diesem Zeitraum eröffnet worden.  
+Die Daten der getätigten Transaktionen und Ausstelldaten der Kreditkarten reichen von 1993 bis zum Ende von 1998. Es scheint unwahrscheinlich, dass im Jahr 1998 keine weiteren Konten eröffnet worden sind. Es ist anzunehmen, dass die Daten über die Konten von 1998 nicht veröffentlicht worden sind.
+
+## Kumulierte Anzahl Konten von 1.1.1993 bis 29.12.1997
+```{r echo=FALSE}
+data_accounts_running_total <- get_accounts_running_total()
+ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
+  geom_line() +
+  labs(x="Jahre", y="Kumulierte Anzahl Konten")
+```
+
+Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
 
 ## Verteilung aller Kunden pro Alter
 ```{r echo=FALSE}

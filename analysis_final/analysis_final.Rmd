@@ -32,6 +32,18 @@ ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
 
 Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
 
+## Anteil Kunden pro Geschlecht
+```{r echo=FALSE}
+data_count_by_gender <- get_count_by_gender()
+ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=count), vjust=-0.5)
+```
+
+Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
+
+# 2. Datenbasis
+
 ## Verteilung aller Kunden pro Alter (Stichtag: 31.12.1998)
 ```{r echo=FALSE}
 data_all_clients_age <- get_all_clients_age()
@@ -41,21 +53,7 @@ ggplot(data_all_clients_age, aes(x=age)) +
   labs(x='Alter', y='Anzahl')
 ```
 
-
-
-## Anteil Kunden pro Geschlecht
-```{r echo=FALSE}
-data_count_by_gender <- get_count_by_gender()
-ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
-  geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=0)
-```
-
-Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
-
-# Schritte
-- Qualität und Representativität
-- 
+Der grösste Anteil aller Kunden liegt im Alter zwischen 18 und 63 Jahre.
 
 # Districts
 - S: Amount of Customers per Region with cards
@@ -97,13 +95,14 @@ Man sieht, dass kein Konto mehr als ein Disponent hat.
 - G: Analyse fehlende Werte
 - G: Warum VYBER?
 
+# 5. Kreditkarten
 
 ## Anzahl Karten pro Kartentyp
 ```{r echo=FALSE}
 data_card_count_by_card_type <- get_card_count_by_card_type()
 ggplot(data_card_count_by_card_type, aes(x=type, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=0)
+  geom_text(aes(label=count), vjust=-0.5)
 ```
 
 Insgesamt sind 892 Kreditkarten im Umlauf:
@@ -117,7 +116,7 @@ Insgesamt sind 892 Kreditkarten im Umlauf:
 data_distinct_accounts_by_card <- get_distinct_accounts_by_card()
 ggplot(data_distinct_accounts_by_card, aes(x=accounts, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=0)
+  geom_text(aes(label=count), vjust=-0.5)
 ```
 
 Kein Konto hat mehrere Kreditkarten. (892 verschiedene Konten)
@@ -126,7 +125,7 @@ Kein Konto hat mehrere Kreditkarten. (892 verschiedene Konten)
 data_card_count_by_disp_type <- get_card_count_by_disp_type()
 ggplot(data_card_count_by_disp_type, aes(x=type, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=0)
+  geom_text(aes(label=count), vjust=-0.5)
 ```
 
 Alle Kartenbesitzer sind auch Inhaber (Owner) der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  

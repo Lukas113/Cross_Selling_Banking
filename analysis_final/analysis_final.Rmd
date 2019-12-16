@@ -14,7 +14,7 @@ output:
 source('inc/header.R')
 ```
 
-Aufgabestellung, etc.  
+Eine tschechische Bank möchte ihre Dienstleistungen für Privatkunden verbessern und hat uns beauftragt “interessante Kundengruppen” zu identifizieren. Die Geschäftsleitung hat keine präzise Vorstellung, möchte aber zusätzliches Business generieren ohne unnötige Risiken einzugehen und Verluste einzufahren.  
 Kunde: Prof. Dr. Daniel Perruchoud
 
 # 1. Qualität und Representativität der Daten
@@ -27,7 +27,7 @@ Die Daten der getätigten Transaktionen und Ausstelldaten der Kreditkarten reich
 data_accounts_running_total <- get_accounts_running_total()
 ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
   geom_line() +
-  labs(x="Jahre", y="Kumulierte Anzahl Konten")
+  labs(x="Jahr", y="Kumulierte Anzahl Konten")
 ```
 
 Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
@@ -37,7 +37,8 @@ Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, das
 data_count_by_gender <- get_count_by_gender()
 ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=-0.5)
+  geom_text(aes(label=count), vjust=-0.5) +
+  labs(x="Geschlecht", y="Anzahl Kunden")
 ```
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
@@ -50,7 +51,7 @@ data_all_clients_age <- get_all_clients_age()
 ggplot(data_all_clients_age, aes(x=age)) + 
   geom_histogram(binwidth=5) +
   scale_x_continuous(breaks = seq(0, 100, 10)) +
-  labs(x='Alter', y='Anzahl')
+  labs(x="Alter", y="Anzahl Kunden")
 ```
 
 Der grösste Anteil aller Kunden liegt im Alter zwischen 18 und 63 Jahre.
@@ -102,7 +103,8 @@ Man sieht, dass kein Konto mehr als ein Disponent hat.
 data_card_count_by_card_type <- get_card_count_by_card_type()
 ggplot(data_card_count_by_card_type, aes(x=type, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=-0.5)
+  geom_text(aes(label=count), vjust=-0.5) +
+  labs(x="Kreditkarten Typ", y="Anzahl Kreditkarten")
 ```
 
 Insgesamt sind 892 Kreditkarten im Umlauf:
@@ -116,19 +118,22 @@ Insgesamt sind 892 Kreditkarten im Umlauf:
 data_distinct_accounts_by_card <- get_distinct_accounts_by_card()
 ggplot(data_distinct_accounts_by_card, aes(x=accounts, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=-0.5)
+  geom_text(aes(label=count), vjust=-0.5) +
+  labs(x="Account", y="Anzahl Kreditkarten")
 ```
 
-Kein Konto hat mehrere Kreditkarten. (892 verschiedene Konten)
+Kein Konto hat mehrere Kreditkarten. Das heisst, dass 892 verschiedene Konten eine Kreditkarte besitzen.
 
 ```{r echo=FALSE}
 data_card_count_by_disp_type <- get_card_count_by_disp_type()
 ggplot(data_card_count_by_disp_type, aes(x=type, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=-0.5)
+  geom_text(aes(label=count), vjust=-0.5) +
+  labs(x="Disposition Typ", y="Anzahl Kreditkarten")
 ```
 
-Alle Kartenbesitzer sind auch Inhaber (Owner) der entsprechenden Konten.  Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  
+Alle Kartenbesitzer sind auch Inhaber (Owner) der entsprechenden Konten.  
+Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere Karten pro Konto zu besitzen: «more credit cards can be issued to an account».  
 Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.  
 Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nicht bereits so gehandhabt wurde.
 
@@ -137,7 +142,8 @@ Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nich
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
 
 ggplot(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue, color=type)) +
-  geom_freqpoly(binwidth=4)
+  geom_freqpoly(binwidth=4) +
+  labs(x="Alter beim Ausstelldatum der Kreditkarte", y="Anzahl Kreditkarten")
 ```
 
 Gemäss den Daten wird die Junior-Kreditkarte nur an unter 25 Jährige vergeben.
@@ -152,7 +158,8 @@ ggplot() +
   geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=4, color="red") +
   xlab('Alter') +
   ylab('Anzahl') +
-  scale_x_continuous(breaks = seq(10,90,5))
+  scale_x_continuous(breaks = seq(10,90,5)) +
+  labs(x="Alter", y="Anzahl Kunden")
 ```
 
 Die blaue Linie ist das Alter der Kunden bei ausstellung der Kreditkarte. Die rote Linie sind alle Kunden und Alter welche keine Kreditkarte haben zum Stichtag 31.12.1998.

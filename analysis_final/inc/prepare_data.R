@@ -79,3 +79,36 @@ get_owner_disp <- function() {
   data <- dbGetQuery(con, "SELECT account_id, count(type) as count_users from disp group by account_id")
   return(data)
 }
+
+get_account_loans <- function(){
+  check_connection()
+  data <- dbGetQuery(con, "select account.account_id, count(loan.loan_id)
+  from account
+  Left join loan on account.account_id = loan.account_id
+  group by account.account_id")
+  return(data)
+}
+
+get_all_clients_join_region_ctype <- function() {
+  check_connection()
+  data <- dbGetQuery(con,"SELECT  client.client_id,
+  CASE WHEN MOD(client.birth_number / 100, 100) > 50 THEN 
+  'f'
+  ELSE
+  'm'
+  END as gender,
+  CASE WHEN MOD(client.birth_number / 100, 100) > 50 THEN
+  TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD')
+  ELSE
+  TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD')
+  END as birthdate,
+  EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(client.birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(client.birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(client.birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
+  card.type, district.a3 AS region
+  FROM client
+  JOIN disp ON client.client_id = disp.client_id
+  LEFT JOIN card ON disp.disp_id = card.disp_id
+  JOIN district ON client.district_id = district.a1
+  ORDER BY client_id") 
+  return(data)
+}
+

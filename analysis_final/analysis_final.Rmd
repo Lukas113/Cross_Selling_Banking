@@ -17,6 +17,13 @@ source('inc/header.R')
 Aufgabestellung, etc.  
 Kunde: Prof. Dr. Daniel Perruchoud
 
+```{r}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+scale_fill_cb <- scale_fill_manual(values = cbPalette)
+scale_color_cb <- scale_color_manual(values = cbPalette)
+```
+
+
 # 1. Qualität und Representativität der Daten
 
 In den Daten sind alle Konten enthalten, welche im Zeitraum von 1.1.1993 bis 29.12.1997 eröffnet worden sind. Insgesamt sind 4'500 Konten in diesem Zeitraum eröffnet worden.  
@@ -46,9 +53,10 @@ ggplot(data_all_clients_age, aes(x=age)) +
 ## Anteil Kunden pro Geschlecht
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
+
 ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
   geom_bar(stat = "identity") +
-  geom_text(aes(label=count), vjust=0)
+  geom_text(aes(label=count), vjust=-0.5)
 ```
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
@@ -57,31 +65,121 @@ Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % 
 - Qualität und Representativität
 - 
 
-# Districts
-- S: Amount of Customers per Region with cards
-- S: Altersverteilung nach Regione Facets
+# Regionen
+
+```{r}
+all_clients_join_region_ctype <- get_all_clients_join_region_ctype()
+
+all_clients_join_region_ctype$type <- replace_na(data = all_clients_join_region_ctype$type,
+                                                 replace = "Keine Karte")
+
+all_clients_join_region_ctype$type <- gsub(pattern = "classic", 
+                                           replacement = "Classic", 
+                                           x = all_clients_join_region_ctype$type)
+all_clients_join_region_ctype$type <- gsub(pattern = "junior", 
+                                           replacement = "Junior", 
+                                           x =all_clients_join_region_ctype$type) 
+all_clients_join_region_ctype$type <- gsub(pattern = "gold", 
+                                           replacement = "Gold", 
+                                           x = all_clients_join_region_ctype$type)
+
+##  Visualisierung Anzahl Kunden und Kartentypen nach Region eingeteilt
+all_clients_join_region_ctype %>%
+  ggplot(aes(x = region, fill = type)) +
+  geom_bar(position = "stack") + 
+  labs(title = "Anzahl der Kunden nach Region", subtitle = "Gesamtanzahl Kunden: 5369") +
+  xlab(label = "Regionen") +
+  ylab(label = "Anzahl der Konten") +
+  coord_flip() +
+  scale_fill_cb
+
+```
+
+Mit dem Plot wurde die Annahme bearbeitet, dass ein gewisser Kartentyp einem spezifischen Bezirk zugeordnet werden kann. Aus optischen Gründen um die Bezirke sauber darzustellen, wurde hier anstatt mit den Bezirken, mit den Regionen gearbeitet. Aus dem Plot ist ersichtlich, dass wieviele Kunden aus welchen Regionen stammen. Ausserdem kann man sehen, dass die Verteilung der Karten auf die einzelnen Regionen nicht viel hergibt und es nach der Anzahl her relativ gleich verteilt ist.
+
+
+
+
+- S: Amount of Customers per Region with cards - DONE!
+- S: Altersverteilung nach Regione Facets - Plot nicht miteinbezogen, da nicht aussagekräftig!
 
 # Accounts
 
-## Vergleich Accounts mit owner gegenüber owner und disponent
+## Vergleich Accounts mit "Owner" gegenüber Accounts mit "Owner und Disponent"
 ```{r echo=FALSE}
 data_owner_disp <- get_owner_disp()
 
-data_owner_disp %>%
+accounts_with_count <- data_owner_disp %>%
+  group_by(count_users) %>%
+  summarise(count_users_new = n())
+
+accounts_with_count_owners <- accounts_with_count$count_users_new[1]
+accounts_with_count_own_disp <- accounts_with_count$count_users_new[2]
+
+data_owner_disp %>% 
   ggplot(aes(x = count_users)) + 
   geom_bar(fill = "lightblue", color = "black") +
   geom_text(stat = "count", aes(label = ..count.. , vjust = -0.5) ) +
-  ylab(label = "amount") +
-  scale_x_continuous(breaks = c(1,2), labels = c("OWNER", "OWNER, DISPONENT"))
+  ylab(label = "Anzahl") +
+  scale_x_continuous(breaks = c(1,2), labels = c("OWNER", "OWNER, DISPONENT")) +
+  labs(title = "Unterteilung der Konten von 4500 Observationen", subtitle = "Unterteilung in Kunden mit Owner und Owner/Disponent")
+
 ```
 
-Man sieht, dass kein Konto mehr als ein Disponent hat.
+Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" und einem "Owner und Disponent". Die Grafik zeigt widerum auch, dass es keine Accounts gibt, die mehr als zwei Besetzungen haben. Die Anzahl kann ebenfalls aus der Grafik gelesen werden. Die Anzahl der Accounts mit einem "Owner" beträgt `r accounts_with_count_owners` Observationen und mit einem "Owner" und einem "Disponent" `r accounts_with_count_own_disp` Observationen.
 
-- S: Accounts mit Loans / ohne Loans
+
+
+
+
+
+## Vergleich der Accounts mit Loans und Accounts ohne Loans
+
+```{r}
+account_loans <- as_tibble(get_account_loans()) 
+head(account_loans)
+
+account_loans %>%
+  ggplot(aes(x = count, fill = count)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  scale_x_continuous(breaks = c(0, 1),labels = c("Konten ohne Kredit", "Konten mit Kredit")) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
+  labs(title = "Konten mit und ohne Kredite (ges. 4500)") +
+  xlab(label = "") +
+  ylab(label = "Anzahl Konten")
+
+```
+
+Mit dem Barchart wird grob aufgezeigt wieviele Konten über einen Kredit verfügen und wieviele nicht.  Er zeigt, dass es eigentliches Potenzial an Kunden vorhanden wäre, die einen Kredit aufnehmen könnten. Der Plot identifiziert ein mögliches Geschäftsfeld der Bank zur Gewinnung potenzieller Kunden.
+
+
+
+
+
+
+
+- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 - M: Line Plot mit den Summierungen von Accounts
 - G: Vermögen 98'
 
 # Loans
+
+```{r}
+
+loan_clients <- get_loan_clients() 
+
+
+
+loan_clients %>%
+ggplot(aes(x = gender, fill = loan_status)) +
+  geom_bar(alpha = 3/4) +
+  labs(title = "Anz. M/F, welche einen Loan haben")
+
+```
+
+
+
+
 - G: Beweis Account nur ein loan
 - S: Übersicht Loans mit Status
 - S: Loans über Jahr mit binwidth = 3

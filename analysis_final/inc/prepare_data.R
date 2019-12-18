@@ -112,3 +112,21 @@ get_all_clients_join_region_ctype <- function() {
   return(data)
 }
 
+get_accounts_loans <- function(){
+  check_connection()
+  data <- dbGetQuery(con, "SELECT account.account_id,
+  account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
+  loan.payments, 
+  CASE 
+	WHEN loan.status = 'A' THEN 'finished, OK'
+	WHEN loan.status = 'B' THEN 'finished, unpayed'
+	WHEN loan.status = 'C' THEN 'running, OK'
+	WHEN loan.status = 'D' THEN 'running, in debt'
+  END AS payment_status
+  FROM account 
+  LEFT JOIN loan ON account.account_id = loan.account_id
+  GROUP BY account.account_id, loan.loan_id
+  ORDER BY account.date")
+  return(data)
+}
+

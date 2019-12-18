@@ -43,14 +43,14 @@ Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, das
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
 
-ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
-  geom_bar(stat = "identity") +
-<<<<<<< HEAD
-  geom_text(aes(label=count), vjust=-0.5)
-=======
-  geom_text(aes(label=count), vjust=-0.5) +
-  labs(x="Geschlecht", y="Anzahl Kunden")
->>>>>>> d9c98b0cd8c0fbaac036c87b2e9f3f2662689a8c
+#ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
+ # geom_bar(stat = "identity") +
+#<<<<<<< HEAD
+ # geom_text(aes(label=count), vjust=-0.5)
+#=======
+ # geom_text(aes(label=count), vjust=-0.5) +
+  #labs(x="Geschlecht", y="Anzahl Kunden")
+#>>>>>>> d9c98b0cd8c0fbaac036c87b2e9f3f2662689a8c
 ```
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
@@ -90,7 +90,7 @@ all_clients_join_region_ctype$type <- gsub(pattern = "gold",
 all_clients_join_region_ctype %>%
   ggplot(aes(x = region, fill = type)) +
   geom_bar(position = "stack") + 
-  labs(title = "Anzahl der Kunden nach Region", subtitle = "Gesamtanzahl Kunden: 5369") +
+  labs(title = "Anzahl der Kunden nach Region", subtitle = "Gesamtanzahl Kunden: 5369", fill = "Kartentyp") +
   xlab(label = "Regionen") +
   ylab(label = "Anzahl der Konten") +
   coord_flip() +
@@ -121,11 +121,13 @@ accounts_with_count_own_disp <- accounts_with_count$count_users_new[2]
 
 data_owner_disp %>% 
   ggplot(aes(x = count_users)) + 
-  geom_bar(fill = "lightblue", color = "black") +
+  geom_bar(color = "black", fill = "grey") +
   geom_text(stat = "count", aes(label = ..count.. , vjust = -0.5) ) +
   ylab(label = "Anzahl") +
+  xlab(label = "") +
   scale_x_continuous(breaks = c(1,2), labels = c("OWNER", "OWNER, DISPONENT")) +
-  labs(title = "Unterteilung der Konten von 4500 Observationen", subtitle = "Unterteilung in Kunden mit Owner und Owner/Disponent")
+  labs(title = "Unterteilung der Konten von 4500 Observationen", subtitle = "Unterteilung in Kunden mit Owner und Owner/Disponent") +
+  scale_fill_cb
 
 ```
 
@@ -133,18 +135,14 @@ Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" un
 
 
 
-
-
-
 ## Vergleich der Accounts mit Loans und Accounts ohne Loans
-
 ```{r}
 account_loans <- as_tibble(get_account_loans()) 
 head(account_loans)
 
 account_loans %>%
   ggplot(aes(x = count, fill = count)) +
-  geom_bar(fill = "lightblue", color = "black") +
+  geom_bar(color = "black", fill = "grey") +
   scale_x_continuous(breaks = c(0, 1),labels = c("Konten ohne Kredit", "Konten mit Kredit")) +
   geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
   labs(title = "Konten mit und ohne Kredite (ges. 4500)") +
@@ -157,41 +155,87 @@ Mit dem Barchart wird grob aufgezeigt wieviele Konten über einen Kredit verfüg
 
 
 
+## Anzahl des Status der Kredite und Anzahl ausgestellte Kredite
+```{r}
+accounts_loans <- get_accounts_with_loans()
+
+## Anzeige Loan Status (Code)
+accounts_with_loans <- na.omit(accounts_loans) %>%
+  rename(date_of_loan = date) %>%
+  mutate(running_finished = if_else(str_detect(string = payment_status, pattern = "finished") ,
+                                    "Finished", "Running")) 
+## Anzeige Loan Status (Plot)
+accounts_with_loans %>%
+ggplot(aes(x = payment_status, fill = running_finished)) + 
+  geom_bar(color= "black") +
+  xlab(label = "Kreditstatus") +
+  ylab(label = "Anzahl der Konten") +
+  scale_fill_cb +
+  labs(title = "Anzahl der Kreditstatus", subtitle = "Die Balken zeigen die Anzahl der Loans mit deren Bezahlstatus von gesamthaft 682 Krediten") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) 
+
+## Anzeige der ausgestellten Loans pro Monat (Code)
+accounts_with_loans_loandate_only <- accounts_with_loans %>%
+  transmute(date_of_loan) %>%
+  arrange() %>%
+  separate(col = date_of_loan,into = c("year", "month", "day") ,sep = "-", convert = ) %>%
+  unite(c("year", "month") ,col = date_loan_yr_mth, sep = "-") %>%
+  transmute(date_loan_yr_mth) %>%
+  group_by(date_loan_yr_mth) %>%
+  summarise(loan_count = n())
+
+## Anzege der ausgestellten Loans pro Monat (Plot)
+accounts_with_loans_loandate_only %>%
+  ggplot(aes(x = date_loan_yr_mth, y = loan_count)) +
+  geom_col(color = "black", fill = "grey")+
+  labs(title = "Anzahl ausgestellte Loans auf Monate aufgeteilt", 
+       subtitle = "Anzeige der ausgestellten Loans pro Monat") +
+  scale_x_discrete(breaks = c("1993-01", "1994-01","1995-01", "1996-01","1997-01","1998-01"))+
+  xlab(label = "Zeitachse in Jahre") +
+  ylab(label = "Anzahl Loans")
+
+```
+
+Auf der ersten Grafik sieht man die Anzahl der ausgestellten Kredite mit deren Bezahlstatus. Es sind wenige Kredite vorhanden, die nicht fertig sind und nicht bezahlt wurden im Gegensatz zu denen, welche bezahlt wurden. Die Verhältnisse von denn die nicht bezahlt wurden zu denen, die bezahlt wurden sind etwa gleich. Die Bank hat zum Zeitpunkt 1999 viele laufende Kredite, von welchen wenige in Rückstand sind.
+Im zweiten Plot ist die Anzahl der ausgestellten Kredite auf einer Zeitachse dargestellt. Es ist zu sehen, dass die ersten Kredite erst im Jahre 1993 ausgestellte wurden. Dabei ist anzunehmen, dass das Kreditgeschäft erst zu diesem Zeitpunkt gestartet hat oder die Bank ihr Geschäft aufgenommen hat. Man sieht einen steigenden Trend in der Anzahl der ausgestellten Kredite auf jüngere Jahre.
 
 
 
-
-- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
+x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 - M: Line Plot mit den Summierungen von Accounts
 - G: Vermögen 98'
 
 # Loans
-
+## Verlgeich der Loans und Status nach Geschlecht
 ```{r}
-
 loan_clients <- get_loan_clients() 
 
-
-
+## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%
 ggplot(aes(x = gender, fill = loan_status)) +
-  geom_bar(alpha = 3/4) +
-  labs(title = "Anz. M/F, welche einen Loan haben")
-
+  geom_bar() +
+  labs(title = "Kreditvergabe nach Geschlecht und deren Status", fill = "Kreditstatus") +
+  scale_fill_cb +
+  xlab( "Geschlecht") +
+  ylab("Anzahl ausgestellte Kredite")
 ```
+
+Bei diesem Plot wurden die Account_id berücksichtigt, also die Accounts, welche über einen Kredit verfügen.
+Mit diesem Plot wurde die Hypothese, dass es Signifikante Unterschiede nach Geschlecht gibt bei der Vergabe von Krediten, bearbeitet. Er wiederlegt, dass die Hypothese nicht korrekt ist. Es sind keine grossen Untershiede vorhanden in der Anzahl, sowohl auch beim Kreditstatus. 
+
 
 
 
 
 - G: Beweis Account nur ein loan
-- S: Übersicht Loans mit Status
-- S: Loans über Jahr mit binwidth = 3
+x- S: Übersicht Loans mit Status 
+x- S: Loans über Jahr mit binwidth pro Monat dargestellt
 - S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon.
-- S: Loan auf Geschlecht, Loan status. Das farbige.
+x- S: Loan auf Geschlecht, Loan status. Das farbige.
 - S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
 
 # Karten
-- S: Number of counts for each service construct
+- S: Number of counts for each service construct + Time-Frame anpassen!
 
 # Trans
 - G: Genauigkeitsüberprüfung

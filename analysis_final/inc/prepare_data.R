@@ -112,7 +112,7 @@ get_all_clients_join_region_ctype <- function() {
   return(data)
 }
 
-get_accounts_loans <- function(){
+get_accounts_with_loans <- function(){
   check_connection()
   data <- dbGetQuery(con, "SELECT account.account_id,
   account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
@@ -130,3 +130,27 @@ get_accounts_loans <- function(){
   return(data)
 }
 
+get_loan_clients <- function(){
+  check_connection()
+  data <- dbGetQuery(con, "select loan.loan_id, loan.amount as loan_amount, 
+  loan.duration as loan_duration,loan.payments as loan_payments, CASE 
+	WHEN loan.status = 'A' THEN 'finished - no problems'
+  	WHEN loan.status = 'B' THEN 'finished - unpayed'
+  	WHEN loan.status = 'C' THEN 'running - OK'
+  	WHEN loan.status = 'D' THEN 'running - in debt' 
+	END AS loan_status,
+  CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 
+		'F'
+	ELSE
+		'M'
+	END as gender,
+	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
+	account.account_id
+  FROM disp
+  join client on client.client_id = disp.client_id
+  join account on disp.account_id	 = account.account_id
+  join loan on account.account_id = loan.account_id
+  where disp.type = 'OWNER'
+  order by loan.loan_id")
+  return(data)
+}

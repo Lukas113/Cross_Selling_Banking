@@ -89,7 +89,7 @@ all_clients_join_region_ctype$type <- gsub(pattern = "gold",
 ##  Visualisierung Anzahl Kunden und Kartentypen nach Region eingeteilt
 all_clients_join_region_ctype %>%
   ggplot(aes(x = region, fill = type)) +
-  geom_bar(position = "stack") + 
+  geom_bar(position = "stack", color = "black") + 
   labs(title = "Anzahl der Kunden nach Region", subtitle = "Gesamtanzahl Kunden: 5369", fill = "Kartentyp") +
   xlab(label = "Regionen") +
   ylab(label = "Anzahl der Konten") +
@@ -210,14 +210,18 @@ x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 ```{r}
 loan_clients <- get_loan_clients() 
 
+print(loan_clients)
+
 ## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%
 ggplot(aes(x = gender, fill = loan_status)) +
-  geom_bar() +
+  geom_bar(color = "black", position = "dodge") +
   labs(title = "Kreditvergabe nach Geschlecht und deren Status", fill = "Kreditstatus") +
   scale_fill_cb +
   xlab( "Geschlecht") +
   ylab("Anzahl ausgestellte Kredite")
+
+
 ```
 
 Bei diesem Plot wurden die Account_id berücksichtigt, also die Accounts, welche über einen Kredit verfügen.
@@ -230,7 +234,7 @@ Mit diesem Plot wurde die Hypothese, dass es Signifikante Unterschiede nach Gesc
 - G: Beweis Account nur ein loan
 x- S: Übersicht Loans mit Status 
 x- S: Loans über Jahr mit binwidth pro Monat dargestellt
-- S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon.
+- S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon. -> Nicht reinnehmen, da zu wenig Daten und nicht aussagekräftig
 x- S: Loan auf Geschlecht, Loan status. Das farbige.
 - S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
 

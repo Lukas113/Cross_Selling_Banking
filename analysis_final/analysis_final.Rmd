@@ -66,7 +66,7 @@ Der grösste Anteil aller Kunden liegt im Alter zwischen 18 und 63 Jahre.
 
 # Regionen
 
-```{r}
+```{r echo = FALSE}
 all_clients_join_region_ctype <- get_all_clients_join_region_ctype()
 
 all_clients_join_region_ctype$type <- replace_na(data = all_clients_join_region_ctype$type,
@@ -132,9 +132,8 @@ Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" un
 
 
 ## Vergleich der Accounts mit Loans und Accounts ohne Loans
-```{r}
+```{r echo = FALSE}
 account_loans <- as_tibble(get_account_loans()) 
-head(account_loans)
 
 account_loans %>%
   ggplot(aes(x = count, fill = count)) +
@@ -152,7 +151,7 @@ Mit dem Barchart wird grob aufgezeigt wieviele Konten über einen Kredit verfüg
 
 
 ## Anzahl des Status der Kredite und Anzahl ausgestellte Kredite
-```{r}
+```{r echo = FALSE}
 accounts_loans <- get_accounts_with_loans()
 
 ## Anzeige Loan Status (Code)
@@ -205,8 +204,6 @@ x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 ## Verlgeich der Loans und Status nach Geschlecht
 ```{r}
 loan_clients <- get_loan_clients() 
-
-print(loan_clients)
 
 ## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%

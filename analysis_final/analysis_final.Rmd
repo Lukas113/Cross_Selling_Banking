@@ -29,7 +29,6 @@ scale_color_cb <- scale_color_manual(values = cbPalette)
 In den Daten sind alle Konten enthalten, welche im Zeitraum von 1.1.1993 bis 29.12.1997 eröffnet worden sind. Insgesamt sind 4'500 Konten in diesem Zeitraum eröffnet worden.  
 Die Daten der getätigten Transaktionen und Ausstelldaten der Kreditkarten reichen von 1993 bis zum Ende von 1998. Es scheint unwahrscheinlich, dass im Jahr 1998 keine weiteren Konten eröffnet worden sind. Es ist anzunehmen, dass die Daten über die Konten von 1998 nicht veröffentlicht worden sind.
 
-## Kumulierte Anzahl Konten von 1.1.1993 bis 29.12.1997
 ```{r echo=FALSE}
 data_accounts_running_total <- get_accounts_running_total()
 ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
@@ -39,7 +38,6 @@ ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
 
 Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
 
-## Anteil Kunden pro Geschlecht
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
 
@@ -53,7 +51,6 @@ Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % 
 
 # 2. Datenbasis
 
-## Verteilung aller Kunden pro Alter (Stichtag: 31.12.1998)
 ```{r echo=FALSE}
 data_all_clients_age <- get_all_clients_age()
 ggplot(data_all_clients_age, aes(x=age)) + 
@@ -96,12 +93,6 @@ all_clients_join_region_ctype %>%
 
 Mit dem Plot wurde die Annahme bearbeitet, dass ein gewisser Kartentyp einem spezifischen Bezirk zugeordnet werden kann. Aus optischen Gründen um die Bezirke sauber darzustellen, wurde hier anstatt mit den Bezirken, mit den Regionen gearbeitet. Aus dem Plot ist ersichtlich, dass wieviele Kunden aus welchen Regionen stammen. Ausserdem kann man sehen, dass die Verteilung der Karten auf die einzelnen Regionen nicht viel hergibt und es nach der Anzahl her relativ gleich verteilt ist.
 
-
-
-
-- S: Amount of Customers per Region with cards - DONE!
-- S: Altersverteilung nach Regione Facets - Plot nicht miteinbezogen, da nicht aussagekräftig!
-
 # Accounts
 
 ## Vergleich Accounts mit "Owner" gegenüber Accounts mit "Owner und Disponent"
@@ -129,8 +120,6 @@ data_owner_disp %>%
 
 Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" und einem "Owner und Disponent". Die Grafik zeigt widerum auch, dass es keine Accounts gibt, die mehr als zwei Besetzungen haben. Die Anzahl kann ebenfalls aus der Grafik gelesen werden. Die Anzahl der Accounts mit einem "Owner" beträgt `r accounts_with_count_owners` Observationen und mit einem "Owner" und einem "Disponent" `r accounts_with_count_own_disp` Observationen.
 
-
-
 ## Vergleich der Accounts mit Loans und Accounts ohne Loans
 ```{r echo = FALSE}
 account_loans <- as_tibble(get_account_loans()) 
@@ -147,8 +136,6 @@ account_loans %>%
 ```
 
 Mit dem Barchart wird grob aufgezeigt wieviele Konten über einen Kredit verfügen und wieviele nicht.  Er zeigt, dass es eigentliches Potenzial an Kunden vorhanden wäre, die einen Kredit aufnehmen könnten. Der Plot identifiziert ein mögliches Geschäftsfeld der Bank zur Gewinnung potenzieller Kunden.
-
-
 
 ## Anzahl des Status der Kredite und Anzahl ausgestellte Kredite
 ```{r echo = FALSE}
@@ -195,10 +182,6 @@ accounts_with_loans_loandate_only %>%
 Auf der ersten Grafik sieht man die Anzahl der ausgestellten Kredite mit deren Bezahlstatus. Es sind wenige Kredite vorhanden, die nicht fertig sind und nicht bezahlt wurden im Gegensatz zu denen, welche bezahlt wurden. Die Verhältnisse von denn die nicht bezahlt wurden zu denen, die bezahlt wurden sind etwa gleich. Die Bank hat zum Zeitpunkt 1999 viele laufende Kredite, von welchen wenige in Rückstand sind.
 Im zweiten Plot ist die Anzahl der ausgestellten Kredite auf einer Zeitachse dargestellt. Es ist zu sehen, dass die ersten Kredite erst im Jahre 1993 ausgestellte wurden. Dabei ist anzunehmen, dass das Kreditgeschäft erst zu diesem Zeitpunkt gestartet hat oder die Bank ihr Geschäft aufgenommen hat. Man sieht einen steigenden Trend in der Anzahl der ausgestellten Kredite auf jüngere Jahre.
 
-
-
-x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
-- M: Line Plot mit den Summierungen von Accounts
 - G: Vermögen 98'
 
 # Loans
@@ -262,18 +245,8 @@ Der Zeitrahmen wurde dato auf den letzten Tag vom Jahre 1998-12-31 gesetzt.
 Er zeigt, dass im Altersegment von 18-25 Jahre die Höhe der aufgenommenen Kredite bei den Männern am höchsten gewichtet ist. Man sieht auch das der Unterschied signifikant ist im Vergleich zu den Frauen. Bei den sonstigen Altersgruppen sieht man keine grossen Unterschiede. Die durchschnittliche Kredithöhe von allen Kunden beträgt 151410.-. Beim genaueren Hinschauen bei der Altersgruppe stellt man fest, dass zwischen 26-35 Jahren die meisten Ausreisser im Bezug auf die Kredithöhe bestehen.
 
 
- 
-
-
-
-
-
 - G: Beweis Account nur ein loan
-x- S: Übersicht Loans mit Status 
-x- S: Loans über Jahr mit binwidth pro Monat dargestellt
 - S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon. -> Nicht reinnehmen, da zu wenig Daten und nicht aussagekräftig
-x- S: Loan auf Geschlecht, Loan status. Das farbige.
-x- S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
 - S: Visualisierung Kunde nmit Karte bezahlen Loans eher zurück
 
 # Karten
@@ -286,7 +259,6 @@ x- S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
 
 # 5. Kreditkarten
 
-## Anzahl ausgestelle Karten pro Kartentyp
 ```{r echo=FALSE}
 data_card_count_by_card_type <- get_card_count_by_card_type()
 ggplot(data_card_count_by_card_type, aes(x=type, y=count)) + 
@@ -319,7 +291,6 @@ Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere 
 Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.  
 Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nicht bereits so gehandhabt wurde.
 
-## Alter der Kunden beim Ausstelldatum der Kreditkarte
 ```{r echo=FALSE}
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
 
@@ -364,6 +335,12 @@ Die ersten 6:
 data_clients_wihtout_credit_card_by_age_range_24_100 <- get_clients_without_credit_card_by_age_range(24, 100)
 head(data_clients_wihtout_credit_card_by_age_range_24_100)
 ```
+
+# Nächste Schritte
+
+Auf Basis dieser Analyse, lassen sich die weiterführende Schritte planen. Da aus der Daten hervorgegangen ist, dass sich die Kreditkarte besser eignen um Querverkäufe zu tätigen, empfehlen wir folgende Schritte:
+- 
+
 
 ```{r echo=FALSE}
 disconnect()

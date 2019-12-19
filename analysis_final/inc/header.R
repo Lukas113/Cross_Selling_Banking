@@ -1,6 +1,11 @@
 library("RPostgreSQL")
 library("ggplot2")
 library("tidyverse")
+library("ggridges")
+library("hrbrthemes")
+library("stringr")
+library("scales")
+library("DescTools")
 
 source('inc/database.R')
 source('inc/prepare_data.R')

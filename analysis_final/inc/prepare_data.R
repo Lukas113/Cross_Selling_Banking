@@ -1,3 +1,12 @@
+library("RPostgreSQL")
+library("tidyverse")
+library("ggridges")
+library("hrbrthemes")
+library("stringr")
+library("scales")
+library("DescTools")
+
+
 get_accounts_running_total <- function() {
   check_connection()
   data = dbGetQuery(con, "SELECT date, SUM(SUM(1)) OVER(ORDER BY date) AS accounts_running_total FROM account GROUP BY date")
@@ -132,8 +141,8 @@ get_accounts_with_loans <- function(){
 
 get_loan_clients <- function(){
   check_connection()
-  data <- dbGetQuery(con, "select loan.loan_id, loan.amount as loan_amount, 
-  loan.duration as loan_duration,loan.payments as loan_payments, CASE 
+  data <- dbGetQuery(con, "select loan.loan_id, loan.date as loan_date, loan.amount as loan_amount, 
+  loan.duration as loan_duration, CASE 
 	WHEN loan.status = 'A' THEN 'finished - no problems'
   	WHEN loan.status = 'B' THEN 'finished - unpayed'
   	WHEN loan.status = 'C' THEN 'running - OK'

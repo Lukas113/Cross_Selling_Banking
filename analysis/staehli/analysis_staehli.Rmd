@@ -124,7 +124,7 @@ account_loans %>%
 
 ```{sql connection=con, output.var = "accounts_loans", echo = FALSE}
 
-SELECT account.account_id, account.district_id,
+SELECT account.account_id,
 account.date AS date_account_creation, loan.loan_id,loan.date , loan.amount AS loan_amount, loan.duration,
 loan.payments, 
 CASE 
@@ -149,7 +149,7 @@ ggplot(accounts_loans, aes(x = payment_status)) +
 
 #Check if null values not in loan table
 accounts_loans %>%
-  filter(account_id == 0 | district_id == 0 | date_account_creation == 0) 
+  filter(account_id == 0  | date_account_creation == 0) 
 
 # filter dataframe not empty values and rename date column 
 accounts_with_loans <- na.omit(accounts_loans) %>%
@@ -176,11 +176,24 @@ str(accounts_with_loans_count)
 colMeans(accounts_with_loans_count[1], na.rm = FALSE)
 
 
-ggplot(accounts_with_loans,aes(x = date_of_loan)) +
-  geom_histogram(binwidth=15, fill="#69b3a2", color="#e7ecef", alpha=0.9) +
-  labs(title = "Amount of loans at time") +
-  scale_x_date(date_breaks = "year", date_labels = "%Y")
 
+accounts_with_loans_loandate_only <- accounts_with_loans %>%
+  transmute(date_of_loan) %>%
+  arrange() %>%
+  separate(col = date_of_loan,into = c("year", "month", "day") ,sep = "-", convert = ) %>%
+  unite(c("year", "month") ,col = date_loan_yr_mth, sep = "-") %>%
+  transmute(date_loan_yr_mth) %>%
+  group_by(date_loan_yr_mth) %>%
+  summarise(loan_count = n())
+
+accounts_with_loans_loandate_only %>%
+  ggplot(aes(x = date_loan_yr_mth, y = loan_count)) +
+  geom_col(color = "black")+
+  labs(title = "Anzahl ausgestellte Loans auf Monate aufgeteilt", 
+       subtitle = "Anzeige der ausgestellten Loans pro Monat") +
+  scale_x_discrete(breaks = c("1993-01", "1994-01","1995-01", "1996-01","1997-01","1998-01"))+
+  xlab(label = "Zeitachse in Jahre") +
+  ylab(label = "Anzahl Loans")
 
 ```
 

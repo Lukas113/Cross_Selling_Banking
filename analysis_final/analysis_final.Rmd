@@ -189,6 +189,7 @@ accounts_with_loans_loandate_only %>%
   xlab(label = "Zeitachse in Jahre") +
   ylab(label = "Anzahl Loans")
 
+
 ```
 
 Auf der ersten Grafik sieht man die Anzahl der ausgestellten Kredite mit deren Bezahlstatus. Es sind wenige Kredite vorhanden, die nicht fertig sind und nicht bezahlt wurden im Gegensatz zu denen, welche bezahlt wurden. Die Verhältnisse von denn die nicht bezahlt wurden zu denen, die bezahlt wurden sind etwa gleich. Die Bank hat zum Zeitpunkt 1999 viele laufende Kredite, von welchen wenige in Rückstand sind.
@@ -202,23 +203,66 @@ x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 
 # Loans
 ## Verlgeich der Loans und Status nach Geschlecht
-```{r}
-loan_clients <- get_loan_clients() 
+```{r echo = FALSE}
+
+loan_clients <- get_loan_clients()
 
 ## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%
-ggplot(aes(x = gender, fill = loan_status)) +
+  ggplot(aes(x = gender, fill = loan_status)) +
   geom_bar(color = "black", position = "dodge") +
   labs(title = "Kreditvergabe nach Geschlecht und deren Status", fill = "Kreditstatus") +
   scale_fill_cb +
   xlab( "Geschlecht") +
   ylab("Anzahl ausgestellte Kredite")
 
+## Berechnung Alter wenn Kredit gegeben (Code)
+loan_clients_when_loan <- loan_clients %>%
+  transmute(diff_years_age_loan = round(as.integer(as.Date("1998-12-31")- loan_date)/365, 0), age,
+            gender,loan_amount, loan_status) %>%
+  mutate(age_when_loan = age - diff_years_age_loan) %>%
+  mutate(age_bins = cut(x = age_when_loan, breaks = c(12, 25, 35, 45, 55, 63)))
 
+
+## Altersgruppierungen Anzahl
+loan_clients_age_bin <- loan_clients_when_loan %>%
+  mutate(age_bins = cut(x = age_when_loan, breaks = c(12, 25, 35, 45, 55, 63))) %>%
+  group_by(age_bins) %>%
+  summarise(age_bins_count = n()) 
+
+summary(loan_clients$age)
+summary(loan_clients$loan_amount)
+
+## Berechnung Alter wenn Kredit gegeben (Plot)
+loan_clients_when_loan %>%
+  ggplot(aes(x = age_bins, y = loan_amount, fill = gender)) +
+  geom_boxplot(notch = TRUE) +
+  scale_y_comma() + 
+  scale_fill_cb +
+  labs(title = "Kredithöhe nach Altersgruppierungen", subtitle = "Gesamtzahl Observationen: 682", 
+       caption = "13-25j: 108 obs. / 26-35j: 168 obs. / 36-45j: 153 obs. / 46-55j: 154obs. / 56-62j: 99obs.") +
+  scale_x_discrete(labels = c("13-25j", "26-35j", "36-45j", "46-55j", "56-62j")) +
+  xlab("Altersgruppierungen") +
+  ylab("Höhe des Kredits") 
+  
+summary(loan_clients_when_loan$age_when_loan)
+  
 ```
 
 Bei diesem Plot wurden die Account_id berücksichtigt, also die Accounts, welche über einen Kredit verfügen.
 Mit diesem Plot wurde die Hypothese, dass es Signifikante Unterschiede nach Geschlecht gibt bei der Vergabe von Krediten, bearbeitet. Er wiederlegt, dass die Hypothese nicht korrekt ist. Es sind keine grossen Untershiede vorhanden in der Anzahl, sowohl auch beim Kreditstatus. 
+
+Beim zweiten Plot wurden Altersgruppierungen erstellt. Anzahl der Kunden nach Alter: 
+- `r loan_clients_age_bin$age_bins_count[1]` Kunden im Alterssegment von 18-25 Jahre.
+- `r loan_clients_age_bin$age_bins_count[2]` Kunden im Alterssegment von 26-35 Jahre.
+- `r loan_clients_age_bin$age_bins_count[3]` Kunden im Alterssegment von 36-45 Jahre.
+- `r loan_clients_age_bin$age_bins_count[4]` Kunden im Alterssegment von 46-55 Jahre.
+- `r loan_clients_age_bin$age_bins_count[5]` Kunden im Alterssegment von 56-63 Jahre.
+Der Zeitrahmen wurde dato auf den letzten Tag vom Jahre 1998-12-31 gesetzt.
+Er zeigt, dass im Altersegment von 18-25 Jahre die Höhe der aufgenommenen Kredite bei den Männern am höchsten gewichtet ist. Man sieht auch das der Unterschied signifikant ist im Vergleich zu den Frauen. Bei den sonstigen Altersgruppen sieht man keine grossen Unterschiede. Die durchschnittliche Kredithöhe von allen Kunden beträgt 151410.-. Beim genaueren Hinschauen bei der Altersgruppe stellt man fest, dass zwischen 26-35 Jahren die meisten Ausreisser im Bezug auf die Kredithöhe bestehen.
+
+
+ 
 
 
 
@@ -229,7 +273,8 @@ x- S: Übersicht Loans mit Status
 x- S: Loans über Jahr mit binwidth pro Monat dargestellt
 - S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon. -> Nicht reinnehmen, da zu wenig Daten und nicht aussagekräftig
 x- S: Loan auf Geschlecht, Loan status. Das farbige.
-- S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
+x- S: Loan Altersverteiung Timeframe, Alter zu Loan Ausstelldatum
+- S: Visualisierung Kunde nmit Karte bezahlen Loans eher zurück
 
 # Karten
 - S: Number of counts for each service construct + Time-Frame anpassen!

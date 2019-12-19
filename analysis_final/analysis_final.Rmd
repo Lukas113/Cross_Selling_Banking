@@ -338,9 +338,8 @@ head(data_clients_wihtout_credit_card_by_age_range_24_100)
 
 # Nächste Schritte
 
-Auf Basis dieser Analyse, lassen sich die weiterführende Schritte planen. Da aus der Daten hervorgegangen ist, dass sich die Kreditkarte besser eignen um Querverkäufe zu tätigen, empfehlen wir folgende Schritte:
-- 
-
+Auf Basis dieser Analyse, lassen sich die weiterführende Schritte planen. Da aus der Daten hervorgegangen ist, dass sich die Kreditkarte am besten eignen um Querverkäufe zu tätigen, empfehlen wir folgende nächste Schritte:
+- Erstellung eines Modelles um die Unterschiede zwischen Karteninhaber und Nicht-Karteninhaber besser zu unterscheiden, in Bezug auf Vermögen und Vermögensentwicklung.
 
 ```{r echo=FALSE}
 disconnect()

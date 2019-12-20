@@ -207,6 +207,8 @@ x- S: Anzahl Konten mit Loans und Konten ohne Loans - DONE!
 
 loan_clients <- get_loan_clients()
 
+loan_clients
+
 ## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%
   ggplot(aes(x = gender, fill = loan_status)) +
@@ -262,7 +264,56 @@ Der Zeitrahmen wurde dato auf den letzten Tag vom Jahre 1998-12-31 gesetzt.
 Er zeigt, dass im Altersegment von 18-25 Jahre die Höhe der aufgenommenen Kredite bei den Männern am höchsten gewichtet ist. Man sieht auch das der Unterschied signifikant ist im Vergleich zu den Frauen. Bei den sonstigen Altersgruppen sieht man keine grossen Unterschiede. Die durchschnittliche Kredithöhe von allen Kunden beträgt 151410.-. Beim genaueren Hinschauen bei der Altersgruppe stellt man fest, dass zwischen 26-35 Jahren die meisten Ausreisser im Bezug auf die Kredithöhe bestehen.
 
 
- 
+# Dienstleistungen
+
+## Untersuchung der Service-Konstrukte
+```{r}
+accounts_services <- get_accounts_services()
+
+## Alle Dienstleistungen vor Ausstellung der Karte
+accounts_services_loan_order <- accounts_services %>%
+  filter(card_issued <= "1998-12-31" & card_issued >= "1998-01-01") ## Alle Karten ausgestellt in 1998
+
+## Alle ausgestellten Kredite vor und nach Ausstellung der Karte (nur Personen die Kredit haben!) 
+accounts_services_1year_before_card_loan <- accounts_services_loan_order %>%
+  select(card_issued, loan_date) %>% 
+  na.omit(loan_date) %>% ## Entferne alle Konten ohne Kredit
+  mutate(loan_days_before_card = card_issued - loan_date)
+
+## Anzahl der Observationen für Konten mit Kreditkarte und einem Kredit 
+accounts_services_1year_before_card_loan_count <- as.integer(count(accounts_services_1year_before_card_loan))
+
+accounts_services_1year_before_card_loan %>%
+  ggplot(aes(loan_days_before_card)) +
+  geom_density(fill =  "grey", color = "black", adjust = 3/4) +
+  scale_x_continuous(breaks = c(-365, 0, 365, 365*2, 365*3, 365*4, 365*5 ),
+                     labels = c("-1y", "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
+  xlab("Tage vor und nach Ausstellung Karte") +
+  labs(title = "Dienstleistungen vor und nach Ausstellung der Kreditkarte", 
+       subtitle = paste("Anzahl Observationen:", accounts_services_1year_before_card_loan_count)) 
+  
+## Alle ausgestellten Daueraufträge vor und nach Ausstellung der Karte (nur Personen, die einen DA haben!) 
+accounts_services_1year_before_card_order <- accounts_services_loan_order %>%
+  select(card_issued, order_date) %>% 
+  na.omit(order_date) %>% ## Entferne alle Konten ohne DA 
+  mutate(order_days_before_card = card_issued - order_date)
+
+## Anzahl der Observationen für Konten mit Kreditkarte und einem Kredit
+accounts_services_1year_before_card_order_count <- as.integer(count(accounts_services_1year_before_card_order))
+
+accounts_services_1year_before_card_order %>%
+  ggplot(aes(order_days_before_card)) +
+  geom_density(fill =  "grey", color = "black", adjust =3/4) +
+  scale_x_continuous(breaks = c(-365, 0, 365, 365*2, 365*3, 365*4, 365*5 ),
+                     labels = c("-1y", "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
+  xlab("Tage vor und nach Ausstellung Karte") +
+  labs(title = "Dienstleistungen vor und nach Ausstellung der Kreditkarte", 
+       subtitle = paste("Anzahl Observationen:", accounts_services_1year_before_card_order_count)) 
+
+
+
+```
+
 
 
 

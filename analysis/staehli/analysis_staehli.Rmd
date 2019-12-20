@@ -478,6 +478,8 @@ Validation Orders: Orders in Transaktionen 3602 obs. / Orders gesamt 3758 obs.
 ### Load Data from function
 check_services <- as_tibble(get_check_services_all())
 
+head(check_services)
+
 ### Mehrfachgebrauchte Operationen als Variablen oder Funktionen
 caption_label_service_code <- labs(caption = "3-Digit Code: 1xx = card / x1x = loan / xx1 = order")
 

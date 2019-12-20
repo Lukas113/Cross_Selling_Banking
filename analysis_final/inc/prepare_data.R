@@ -154,12 +154,28 @@ get_loan_clients <- function(){
 		'M'
 	END as gender,
 	EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age,
-	account.account_id
+	account.account_id, card.card_id
   FROM disp
+  full join card on disp.disp_id = card.disp_id
   join client on client.client_id = disp.client_id
   join account on disp.account_id	 = account.account_id
   join loan on account.account_id = loan.account_id
   where disp.type = 'OWNER'
   order by loan.loan_id")
+  return(data)
+}
+
+
+get_accounts_services <- function(){
+  check_connection()
+  data <- dbGetQuery(con, "select account.account_id, account.date as account_issued ,card.issued as card_issued, loan.date as loan_date, min(trans.date) as order_date
+  from account
+  left join loan on account.account_id = loan.account_id
+  left join disp on disp.account_id = account.account_id
+  left join card on card.disp_id = disp.disp_id
+  left join orders on account.account_id = orders.account_id
+  left join trans on (orders.account_id = trans.account_id AND orders.amount = trans.amount AND orders.account_to = trans.account AND orders.bank_to = trans.bank)
+  where disp.type = 'OWNER'
+  group by account.account_id, account.date ,card.issued, loan.date")
   return(data)
 }

@@ -247,7 +247,7 @@ Der Zeitrahmen wurde dato auf den letzten Tag vom Jahre 1998-12-31 gesetzt.
 Er zeigt, dass im Altersegment von 18-25 Jahre die Höhe der aufgenommenen Kredite bei den Männern am höchsten gewichtet ist. Man sieht auch das der Unterschied signifikant ist im Vergleich zu den Frauen. Bei den sonstigen Altersgruppen sieht man keine grossen Unterschiede. Die durchschnittliche Kredithöhe von allen Kunden beträgt 151410.-. Beim genaueren Hinschauen bei der Altersgruppe stellt man fest, dass zwischen 26-35 Jahren die meisten Ausreisser im Bezug auf die Kredithöhe bestehen.
 
 
-<<<<<<< HEAD
+
 # Dienstleistungen
 
 ## Untersuchung der Service-Konstrukte
@@ -303,8 +303,6 @@ accounts_services_1year_before_card_order %>%
 
 
 
-=======
->>>>>>> 6dc7f9ec549441608c937f79f1896e739743ec14
 - G: Beweis Account nur ein loan
 - S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon. -> Nicht reinnehmen, da zu wenig Daten und nicht aussagekräftig
 - S: Visualisierung Kunde nmit Karte bezahlen Loans eher zurück

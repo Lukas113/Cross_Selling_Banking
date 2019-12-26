@@ -41,10 +41,11 @@ Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, das
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
 
-ggplot(data_count_by_gender, aes(x=gender, y=count)) + 
-  geom_bar(stat = "identity", color = "black", fill = "grey") +
+ggplot(data_count_by_gender, aes(x=gender, y=count, fill = gender)) + 
+  geom_bar(stat = "identity", color = "black") +
   geom_text(aes(label=count), vjust=-0.5) +
-  labs(x="Geschlecht", y="Anzahl Kunden", title="Anzahl Kunden pro Geschlecht")
+  labs(x="Geschlecht", y="Anzahl Kunden", title="Anzahl Kunden pro Geschlecht") +
+  scale_fill_cb
 ```
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
@@ -107,15 +108,15 @@ accounts_with_count_owners <- accounts_with_count$count_users_new[1]
 accounts_with_count_own_disp <- accounts_with_count$count_users_new[2]
 
 data_owner_disp %>% 
-  ggplot(aes(x = count_users)) + 
-  geom_bar(color = "black", fill = "grey") +
+  ggplot(aes(x = count_users, fill = if_else(count_users == 1, "OWNER", "OWNER, DISPONENT"))) + 
+  geom_bar(color = "black", show.legend = FALSE) +
   geom_text(stat = "count", aes(label = ..count.. , vjust = -0.5) ) +
   ylab(label = "Anzahl") +
   xlab(label = "") +
   scale_x_continuous(breaks = c(1,2), labels = c("OWNER", "OWNER, DISPONENT")) +
-  labs(title = "Unterteilung der Konten von 4500 Observationen", subtitle = "Unterteilung in Kunden mit Owner und Owner/Disponent") +
-  scale_fill_cb
-
+  labs(title = "Unterteilung der Konten von 4500 Observationen", 
+       subtitle = "Unterteilung in Kunden mit Owner und Owner/Disponent") +
+  scale_fill_cb 
 ```
 
 Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" und einem "Owner und Disponent". Die Grafik zeigt widerum auch, dass es keine Accounts gibt, die mehr als zwei Besetzungen haben. Die Anzahl kann ebenfalls aus der Grafik gelesen werden. Die Anzahl der Accounts mit einem "Owner" beträgt `r accounts_with_count_owners` Observationen und mit einem "Owner" und einem "Disponent" `r accounts_with_count_own_disp` Observationen.
@@ -124,15 +125,17 @@ Anhand der Grafik kann gesehen werden, das es Accounts gibt mit einem "Owner" un
 ```{r echo = FALSE}
 account_loans <- as_tibble(get_account_loans()) 
 
+account_loans
+
 account_loans %>%
-  ggplot(aes(x = count, fill = count)) +
-  geom_bar(color = "black", fill = "grey") +
+  ggplot(aes(x = count, fill = if_else(count == 0, "Kredit", "ohne Kredit"))) +
+  geom_bar(color = "black", show.legend = FALSE) +
   scale_x_continuous(breaks = c(0, 1),labels = c("Konten ohne Kredit", "Konten mit Kredit")) +
   geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
   labs(title = "Konten mit und ohne Kredite (ges. 4500)") +
   xlab(label = "") +
-  ylab(label = "Anzahl Konten")
-
+  ylab(label = "Anzahl Konten") +
+  scale_fill_cb
 ```
 
 Mit dem Barchart wird grob aufgezeigt wieviele Konten über einen Kredit verfügen und wieviele nicht.  Er zeigt, dass es eigentliches Potenzial an Kunden vorhanden wäre, die einen Kredit aufnehmen könnten. Der Plot identifiziert ein mögliches Geschäftsfeld der Bank zur Gewinnung potenzieller Kunden.
@@ -189,8 +192,6 @@ Im zweiten Plot ist die Anzahl der ausgestellten Kredite auf einer Zeitachse dar
 ```{r echo = FALSE}
 
 loan_clients <- get_loan_clients()
-
-loan_clients
 
 ## Darstellung ausgestellte Lonas nach geschlecht und Bezahlstatus (Plot)
 loan_clients %>%
@@ -270,10 +271,11 @@ accounts_services_1year_before_card_loan_count <- as.integer(count(accounts_serv
 accounts_services_1year_before_card_loan %>%
   ggplot(aes(loan_days_before_card)) +
   geom_density(fill =  "grey", color = "black", adjust = 3/4) +
-  scale_x_continuous(breaks = c(-365, 0, 365, 365*2, 365*3, 365*4, 365*5 ),
-                     labels = c("-1y", "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
-  xlab("Tage vor und nach Ausstellung Karte") +
-  labs(title = "Dienstleistungen vor und nach Ausstellung der Kreditkarte", 
+  scale_x_continuous(breaks = c( 0, 365, 365*2, 365*3, 365*4, 365*5 ),
+                     labels = c( "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
+  xlab("Tage vor Ausstellung Karte") +
+  ylab("Dichte") +
+  labs(title = "Dienstleistung Kredit vor Ausstellung der Kreditkarte", 
        subtitle = paste("Anzahl Observationen:", accounts_services_1year_before_card_loan_count)) 
   
 ## Alle ausgestellten Daueraufträge vor und nach Ausstellung der Karte (nur Personen, die einen DA haben!) 
@@ -288,15 +290,20 @@ accounts_services_1year_before_card_order_count <- as.integer(count(accounts_ser
 accounts_services_1year_before_card_order %>%
   ggplot(aes(order_days_before_card)) +
   geom_density(fill =  "grey", color = "black", adjust =3/4) +
-  scale_x_continuous(breaks = c(-365, 0, 365, 365*2, 365*3, 365*4, 365*5 ),
-                     labels = c("-1y", "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
-  xlab("Tage vor und nach Ausstellung Karte") +
-  labs(title = "Dienstleistungen vor und nach Ausstellung der Kreditkarte", 
+  scale_x_continuous(breaks = c( 0, 365, 365*2, 365*3, 365*4, 365*5 ),
+                     labels = c( "Karte ausgestellt", "1y", "2y", "3y", "4y", "5y") ) +
+  xlab("Tage vor Ausstellung Karte") +
+  ylab("Dichte") +
+  labs(title = "Dienstleistung Dauerauftrag vor Ausstellung der Kreditkarte", 
        subtitle = paste("Anzahl Observationen:", accounts_services_1year_before_card_order_count)) 
 
 
-
 ```
+
+Bei diesen Plots ging es darum die Dienstleistungen von allen Kunden zu untersuchen, die eine Karte besitzen. Dabei wurde untersucht, welche Dienstleistungen sie vor dem Erwerb einer Kreditkarte hatten. 
+Das Timeframe wurde dabei so gesetzt, dass alle Kunden die eine Kreditkarte im Jahre 1998 erworben haben berücksichtigt werden. Von all den Kunden wurde das Time-Frame dann spezifisch zum Kauf der Karte zu den vorherigen Jahren gesetzt, sowie es auf dem Diagramm ersichtlich ist. 
+Die Diagramme zeigen, dass der Grossteil der Kunden, welche einen Kredit oder einen Dauerauftrag vor dem Kauf einer Kreditkarte initialisiert haben, die Dienstleistung ein bis zwei Jahre vorher bezogen haben. Es ist auch zu sehen, dass vor der Anzahl her die meisten Kartennutzer bereits eine Dienstleistung besitzen.
+Dieser Aspekt der Dienstleistung wäre somit bei der Auswahl an bestehenden Kunden etwas, was man berücksichtigen könnte.
 
 
 

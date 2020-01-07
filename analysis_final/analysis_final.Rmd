@@ -373,11 +373,37 @@ data_clients_without_credit_card_0_100 <- get_clients_without_credit_card_by_age
 
 ggplot() +
   geom_freqpoly(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue), binwidth=4, color="blue") +
-  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=4, color="red") +
+  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=1, color="red") +
   xlab('Alter') +
   ylab('Anzahl') +
   scale_x_continuous(breaks = seq(10,90,5)) +
   labs(x="Alter", y="Anzahl Kunden", title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)")
+
+
+ggplot() +
+  geom_density(data = data_client_age_by_issued_date, aes(x = age_on_card_issue), 
+               fill = cbPalette[1] , 
+               alpha = 1/2) +
+  geom_density(data = data_clients_without_credit_card_0_100,
+               aes(x = age), 
+               fill = cbPalette[2], 
+               alpha = 1/2) +
+  xlab('Alter') +
+  ylab('Anzahl') +
+  scale_x_continuous(breaks = seq(10,90,5)) +
+  labs(x="Alter", y="Anzahl Kunden", 
+       title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)")
+
+
+
+ggplot() +
+  geom_freqpoly(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue), binwidth=1, color="blue") +
+  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=1, color="red") +
+  xlab('Alter') +
+  ylab('Anzahl') +
+  scale_x_continuous(breaks = seq(10,90,5)) +
+  labs(x="Alter", y="Anzahl Kunden", title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)")
+
 ```
 
 Die blaue Linie ist das Alter der Kunden bei ausstellung der Kreditkarte. Die rote Linie sind alle Kunden und Alter welche keine Kreditkarte haben zum Stichtag 31.12.1998.

@@ -33,22 +33,11 @@ Als erstes versuchte ich, einen Überblick über die aktuellen Daten zu erhalten
 &rarr; Die trans_ids sind nicht in chronologischer Reihenfolge aufgelistet, was man von einer Datenbank erwarten würde. Die IDs sind nach den account_ids erstellt worden, was nicht einer natürlichen Erzeugung der ids entspricht. Auch innerhalb der account_ids folgen die tans_ids nicht dem chronologischen Zeitverlauf, was eine genaue Sortierung nach den IDs verunmöglicht.
 Zusätzlich sind die einzelnen Transaktionen nicht mit einem timestamp versehen, sondern lediglich mit einem Datum. Die Kombination von vermeintlich willkürlich gesetzten trans_ids und ungenauen Zeitangaben der Transaktionen erschwert die Analyse signifikant, da die Transaktionen mit diesen Angaben nie genau sortiert werden können.
 
-Da die Datensätze relativ klein sind, erschien es mir sinnvoll, die Tables als R-Objekte lokal abzuspeichern, um diese danach lokal zu bearbeiten.
+Da die Datensätze relativ klein sind, erschien es mir sinnvoll, die Tables als R-Objekte lokal abzuspeichern, um diese danach lokal zu bearbeiten. Die Datenobjekte werden vom entsprechenden Ordner geladen, falls das Objekt und der Ordner vorhanden ist. Falls diese nicht vorhanden sein sollten, werden sie neu von der Datenbank geholt und lokal ins Ordnerverzeichnis abgespeichert.
 ```{r echo = FALSE}
-account_path <- '../objects/account.rda'
-card_path <- '../objects/card.rda'
-client_path <- '../objects/client.rda'
-disp_path <- '../objects/disp.rda'
-district_path <- '../objects/district.rda'
-loan_path <- '../objects/loan.rda'
-orders_path <- '../objects/orders.rda'
-trans_path <- '../objects/trans.rda'
-paths <- c(account_path, card_path, client_path, disp_path, district_path, loan_path, orders_path, trans_path)
-dir.create('../objects', showWarnings = FALSE)
-
 DB_HOST='server2053.cs.technik.fhnw.ch' # or 86.119.36.94 depending on the network
 DB_PORT = 5432
-DB_DBNAME = 'bank_db' # or 'warenkorb_db'
+DB_DBNAME = 'bank_db'
 DB_USERNAME = 'db_user'
 DB_PASSWORD = 'db_user_pw'
 
@@ -57,15 +46,20 @@ con <- dbConnect(drv, dbname = DB_DBNAME,
                  host = DB_HOST, port = DB_PORT,
                  user = DB_USERNAME, password = DB_PASSWORD)
 
-for (path in paths){
+prefix <- '../objects/'
+suffix <- '.rds'
+tables <- c('account', 'card', 'client', 'disp', 'district', 'loan', 'orders', 'trans')
+dir.create(prefix, showWarnings = FALSE)
+
+for (table_name in tables){
+  path <- paste0(prefix, table_name, suffix)
   if (file.exists(path)){
-    load(file = path, envir = .GlobalEnv)
+    table <- readRDS(file = path)
   } else {
-    table_name <- unlist(strsplit(unlist(strsplit(path, '/'))[3], '.rda'))
     table <- dbGetQuery(con, paste0('SELECT * FROM ', table_name))
-    assign(table_name, table, envir = .GlobalEnv)
-    save(table, file = path)
+    saveRDS(table, file = path)
   }
+  assign(table_name, table, envir = .GlobalEnv)
 }
 
 dbDisconnect(con)
@@ -558,6 +552,7 @@ Das Timeframe ist so gewählt, dass die Kunden auf vernünftiger Weise miteinand
 ```{r echo = TRUE}
 get_balance_inf <- function(trans_frame){
   balances <- balance_account(trans_frame)
+  
   inflow_outflow <- trans_frame %>%
     dplyr::group_by(account_id, trans_type) %>%
     dplyr::summarise(balance_change = sum(trans_amount))
@@ -586,7 +581,7 @@ card_purch_comp <- function(trans_frame, account_frame, disp_frame, cards_frame,
     dplyr::inner_join(disp_frame, by = 'account_id') %>%
     dplyr::filter(disp_type == 'OWNER') %>%
     dplyr::left_join(cards_frame, by = 'disp_id') %>%
-    dplyr::select(account_id, account_date, frequency, account_date, card_type, issued)
+    dplyr::select(account_id, account_date, frequency, card_type, issued)
   
   #time frame (card-issued minus day_difference(start_date, ending_date)) until card-issued 
   accounts_with_cards <- account_cards %>%
@@ -618,6 +613,7 @@ card_purch_comp <- function(trans_frame, account_frame, disp_frame, cards_frame,
   
   result_frame$card_type[is.na(result_frame$card_type)] <- 'no_card'
   
+  #return(result_frame)
   return(result_frame)
 }
 
@@ -772,6 +768,120 @@ flow_PRIJEM_1998_summary
 Auch hier unterscheiden sich MIttelwert und Median der durchschnittlichen monatlichen Geldzuflüsse der Kartenbesitzer erheblich gegenüber denjenigen, welche keine Karten besitzten. Es fällt zudem auf, dass alle, welche eine Kreditkarte erwarben, in den letzten 12 Monaten (oder weniger, wenn diese nicht seit 12 Monaten Kunden sind) keine inaktiven Accounts hatten. Sämtliche Accounts der Kreditkartenbesitzer haben vor dem Kartenerwerb Geldzuflüsse im vierstelligen Bereich oder höher zu verzeichnen.
 
 Berücksichtigt man die durchschnittlichen monatlichen Geldzu- und Abflüsse, schliesst sich daraus, dass aktivere Konten eher eine Kreditkarte erwarben. Die Höhe der Geldbeträge entsprechen zusätzlich den Kartentypen`card_type` 'junior' < 'classic' < 'gold'.
+
+
+
+```{r}
+cash_flow_development <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date){
+  #' @description this function provides the data-frame respecting to tha cash-flow of the accounts
+  #' in the time-frame
+  inc_offset_days <- (ending_date - start_date) + 1
+  
+  account_cards <- account_frame %>%
+    dplyr::inner_join(disp_frame, by = 'account_id') %>%
+    dplyr::filter(disp_type == 'OWNER') %>%
+    dplyr::left_join(cards_frame, by = 'disp_id') %>%
+    dplyr::select(account_id, account_date, frequency, card_type, issued)
+  
+  #time frame (card-issued minus day_difference(start_date, ending_date)) until card-issued 
+  accounts_with_cards <- account_cards %>%
+    dplyr::filter(!is.na(card_type)) %>%
+    dplyr::filter(issued >= start_date & issued <= ending_date) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= issued & trans_date > (issued - inc_offset_days))
+  
+  #time-frame start_date until end_date
+  accounts_without_cards <- account_cards %>%
+    dplyr::filter(is.na(card_type)) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= ending_date & trans_date >= start_date)
+  
+  acc_no_cards_path <- paste0(prefix, 'seq_data_no_cards', suffix)
+  acc_with_cards <- complete_seq_data(accounts_without_cards, acc_no_cards_path)
+  acc_with_cards_path <- paste0(prefix, 'seq_data_with_cards', suffix)
+  acc_without_cards <- complete_seq_data(accounts_with_cards, acc_with_cards_path)
+  
+  result_frame <- acc_with_cards %>%
+    dplyr::union(acc_without_cards) %>%
+    dplyr::group_by(account_id, trans_date) %>%
+    dplyr::summarise(mean_balance = mean(balance)) %>%
+    dplyr::inner_join(account_cards, by = 'account_id') %>%
+    dplyr::select(account_id, trans_date, mean_balance, card_type) %>%
+    dplyr::arrange(account_id, desc(trans_date)) %>%
+    dplyr::mutate(day_id = 366 - row_number()) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(card_type, day_id) %>%
+    dplyr::summarise(mean_balance = mean(mean_balance))
+
+  result_frame$card_type[is.na(result_frame$card_type)] <- 'no_card'
+  
+  balance_dev_plot <- ggplot2::ggplot(data = result_frame, aes(x = day_id, y = mean_balance, group = card_type, color = card_type)) +
+    geom_line() +
+    scale_color_viridis(discrete = TRUE) +
+    ggtitle("Balance Development of One Year") +
+    theme_ipsum() +
+    ylab("Mean Balance")
+  
+  assign('balance_dev_plot', balance_dev_plot, envir = .GlobalEnv)
+}
+
+complete_seq_data <- function(df, df_path){
+  if (file.exists(df_path)){
+    return(readRDS(file = df_path))
+  }
+  df <- df %>%
+    dplyr::select(-frequency, -operation, -trans_k_symbol, -bank, -account) %>%
+    dplyr::mutate(trans_date = as.Date(trans_date)) %>%
+    dplyr::arrange(account_id, trans_date) %>%
+    dplyr::group_by(account_id) %>%
+    tidyr::complete(trans_date = seq.Date(min(trans_date), max(trans_date), by = 'day')) %>%
+    tidyr::fill(balance) %>%
+    dplyr::ungroup()
+  
+  saveRDS(df, file = df_path)
+  return(df)
+}
+
+cash_flow_development(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'))
+```
+
+
+
+BLABLA
+
+**Title??**
+
+```{r echo = FALSE, warning = FALSE}
+balance_dev_plot
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

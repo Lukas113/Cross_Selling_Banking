@@ -264,7 +264,7 @@ Er zeigt, dass im Altersegment von 18-25 Jahre die Höhe der aufgenommenen Kredi
 # Dienstleistungen
 
 ## Untersuchung der Service-Konstrukte
-```{r}
+```{r echo=FALSE}
 accounts_services <- get_accounts_services()
 
 ## Alle Dienstleistungen vor Ausstellung der Karte

@@ -10,10 +10,22 @@ get_all_clients_age <- function() {
   return(data)
 }
 
-
 get_count_by_gender <- function() {
   check_connection()
   data = dbGetQuery(con, "SELECT CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'Weiblich' ELSE 'Männlich' END as gender, count(CASE WHEN MOD(birth_number / 100, 100) > 50 THEN 'f' ELSE 'm' END) FROM client group by gender")
+  return(data)
+}
+
+get_client_age_and_balance <- function() {
+  check_connection()
+  data = dbGetQuery(con, "SELECT AVG(trans.balance) as avg_balance, EXTRACT(YEAR FROM AGE('1998-12-31', CASE WHEN MOD(client.birth_number / 100, 100) > 50 THEN TO_DATE(CONCAT('19', CAST(client.birth_number-5000 AS VARCHAR(6))), 'YYYYMMDD') ELSE TO_DATE(CONCAT('19', CAST(client.birth_number AS VARCHAR(6))), 'YYYYMMDD') END)) as age
+FROM trans
+join disp on trans.account_id = disp.account_id
+join client on disp.client_id = client.client_id
+WHERE
+trans_id IN (SELECT MAX(trans_id) AS last_id FROM trans GROUP BY account_id) AND
+disp.type = 'OWNER'
+group by age")
   return(data)
 }
 

@@ -41,10 +41,11 @@ Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, das
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
 
-ggplot(data_count_by_gender, aes(x=gender, y=count, fill = gender)) + 
+ggplot(data_count_by_gender, aes(x=gender, y=count, fill=gender)) + 
   geom_bar(stat = "identity", color = "black") +
   geom_text(aes(label=count), vjust=-0.5) +
   labs(x="Geschlecht", y="Anzahl Kunden", title="Anzahl Kunden pro Geschlecht") +
+  guides(fill=guide_legend(title="Geschlecht")) +
   scale_fill_cb
 ```
 
@@ -186,6 +187,18 @@ Auf der ersten Grafik sieht man die Anzahl der ausgestellten Kredite mit deren B
 Im zweiten Plot ist die Anzahl der ausgestellten Kredite auf einer Zeitachse dargestellt. Es ist zu sehen, dass die ersten Kredite erst im Jahre 1993 ausgestellte wurden. Dabei ist anzunehmen, dass das Kreditgeschäft erst zu diesem Zeitpunkt gestartet hat oder die Bank ihr Geschäft aufgenommen hat. Man sieht einen steigenden Trend in der Anzahl der ausgestellten Kredite auf jüngere Jahre.
 
 - G: Vermögen 98'
+
+## Korrelation Alter und Vermögen
+```{r echo=FALSE}
+data_client_age_and_balance <- get_client_age_and_balance()
+cor <- cor(data_client_age_and_balance['age'], data_client_age_and_balance['avg_balance'])
+ggplot(data_client_age_and_balance, aes(x=age, y=avg_balance)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  labs(title="Korrelation zwischen Alter und Durchschnittliches Vermögen", x="Alter", y="Durchschnittliches Vermögen")
+```
+
+Untersucht wurde, ob eine Korrelation zwischen dem Alter und dem Durchschnittlichen Vermögen besteht. Der Korrelationskoeffizient beträgt `r cor`, womit eine stark negative Korrelation besteht. Das bedeutet, dass mit zunehmendem Alter das Vermögen abnimmt.
 
 # Loans
 ## Verlgeich der Loans und Status nach Geschlecht
@@ -360,9 +373,15 @@ Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nich
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
 
 ggplot(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue, color=type)) +
+<<<<<<< HEAD
   geom_freqpoly(binwidth=2) +
   labs(x="Alter beim Ausstelldatum der Kreditkarte", y="Anzahl Kreditkarten", title="Alter der Kunden beim Ausstelldatum der Kreditkarte") +
   scale_x_continuous(breaks = seq(10, 85, 5))
+=======
+  geom_freqpoly(binwidth=4) +
+  labs(x="Alter beim Ausstelldatum der Kreditkarte (Intervall: 4 Jahre)", y="Anzahl Kreditkarten", title="Alter der Kunden beim Ausstelldatum der Kreditkarte") +
+  scale_color_discrete(name = "Kreditkartentyp")
+>>>>>>> f6044876f260caf32e489671f61adcebc56c2a81
 ```
 
 Gemäss den Daten wird die Junior-Kreditkarte nur an unter 25 Jährige vergeben.
@@ -373,13 +392,10 @@ data_client_age_by_issued_date <- get_client_age_by_issued_date()
 data_clients_without_credit_card_0_100 <- get_clients_without_credit_card_by_age_range(0, 100)
 
 ggplot() +
-  geom_freqpoly(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue), binwidth=4, color="blue") +
-  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=1, color="red") +
-  xlab('Alter') +
-  ylab('Anzahl') +
+  geom_freqpoly(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue), binwidth=2, color="blue") +
+  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=2, color="red") +
   scale_x_continuous(breaks = seq(10,90,5)) +
   labs(x="Alter", y="Anzahl Kunden", title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)")
-
 
 ggplot() +
   geom_density(data = data_client_age_by_issued_date, aes(x = age_on_card_issue), 
@@ -389,10 +405,9 @@ ggplot() +
                aes(x = age), 
                fill = cbPalette[2], 
                alpha = 1/2) +
-  xlab('Alter') +
-  ylab('Anzahl') +
   scale_x_continuous(breaks = seq(10,90,5)) +
   labs(x="Alter", y="Anzahl Kunden", 
+<<<<<<< HEAD
        title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)",
         color = "Legend")
 
@@ -406,6 +421,13 @@ ggplot() +
                 mapping = aes(x = age, color = "red"), binwidth=1) +
   xlab('Alter') +
   ylab('Anzahl') +
+=======
+       title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)")
+
+ggplot() +
+  geom_freqpoly(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issue), binwidth=1, color="blue") +
+  geom_freqpoly(data = data_clients_without_credit_card_0_100, mapping = aes(x = age), binwidth=1, color="red") +
+>>>>>>> f6044876f260caf32e489671f61adcebc56c2a81
   scale_x_continuous(breaks = seq(10,90,5)) +
   labs(x="Alter", y="Anzahl Kunden", 
        title="Alter der Kunden Ausstelldatum Kreditkarte / Kunden ohne Karte (31.12.1998)", )

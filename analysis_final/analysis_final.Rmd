@@ -23,8 +23,61 @@ scale_fill_cb <- scale_fill_manual(values = cbPalette)
 scale_color_cb <- scale_color_manual(values = cbPalette)
 ```
 
+Da die Datensätze relativ klein sind, erschien es sinnvoll, die Tables als R-Objekte lokal abzuspeichern, um diese danach lokal bearbeiten zu können. Die Datenobjekte werden vom entsprechenden Ordner geladen, falls das Objekt und der Ordner vorhanden ist. Falls diese nicht vorhanden sein sollten, werden sie neu von der Datenbank geholt und lokal ins Ordnerverzeichnis abgespeichert.
+Zusätzlich werden hier Datenfunktionen zur Verfügung gestellt, um Jahresanfänge und Jahresende komfortabel im entsprechenden Datenformat zur Verfügung stehen.
+```{r echo = FALSE}
+prefix <- './objects/'
+suffix <- '.rds'
+tables <- c('account', 'card', 'client', 'disp', 'district', 'loan', 'orders', 'trans')
+dir.create(prefix, showWarnings = FALSE)
+
+check_connection()
+for (table_name in tables){
+  path <- paste0(prefix, table_name, suffix)
+  if (file.exists(path)){
+    table <- readRDS(file = path)
+  } else {
+    table <- dbGetQuery(con, paste0('SELECT * FROM ', table_name))
+    saveRDS(table, file = path)
+  }
+  assign(table_name, table, envir = .GlobalEnv)
+}
+
+lowest_trans_date <- as.Date('1993-01-01')
+lowest_year <- 1993
+highest_trans_date <- as.Date('1998-12-31')
+highest_year <- 1998
+money <- 'Geld'
+dens <- 'Dichte'
+card_t <- 'Kartentyp'
+bal <- 'Vermögen'
+
+beginning_date <- function(year){
+  return(as.Date(paste0(year, '-01-01')))
+}
+
+ending_date <- function(year){
+  return(as.Date(paste0(year, '-12-31')))
+}
+```
+
 
 # 1. Qualität und Representativität der Daten
+
+## Erste Erkentnisse
+
+Wir versuchten, einen Überblick über die aktuellen Daten zu erhalten, sowie alfällige Unregelmässigkeiten oder andere Auffälligkeiten aufzudecken. Folgende Punkte sind uns aufgefallen:
+
+- Auffälligkeit: Identische "disp_id" und "client_id" bis "client_id" 8777 (Zeile 4987)
+
+&rarr; n zu 1 Verbindung von "client" zu "account", was nicht exakt der Beschreibung der Daten entspricht. Da wird von einer m zu n Verbindung gesprochen, wonach ich vorerst die annahm, dass es sich bei "disp" um eine Transforationstabelle handelt. Jedoch, wenn die disp_id aufsteigend angeordnet sind, sind die client_ids streng monoton wachsend sowie die account_ids monoton wachsend, was auf eine n zu 1 Beziehung zwischen client zu account schliesst. Ist dies eine Business-Rule, könnte die "disp" Tabelle zur "client" Tabelle beigefügt werden. Aus technischer Sicht ist dies jedoch unproblematisch.
+
+- Transdaten und IDs in "trans" 
+
+&rarr; Die trans_ids sind nicht in chronologischer Reihenfolge aufgelistet, was man von einer Datenbank erwarten würde. Die IDs sind nach den account_ids erstellt worden, was nicht einer natürlichen Erzeugung der ids entspricht. Auch innerhalb der account_ids folgen die tans_ids nicht dem chronologischen Zeitverlauf, was eine genaue Sortierung nach den IDs verunmöglicht.
+Zusätzlich sind die einzelnen Transaktionen nicht mit einem timestamp versehen, sondern lediglich mit einem Datum. Die Kombination von vermeintlich willkürlich gesetzten trans_ids und ungenauen Zeitangaben der Transaktionen erschwert die Analyse signifikant, da die Transaktionen mit diesen Angaben nie genau sortiert werden können.
+
+## Anzahl Konten 1993 - 1998
 
 In den Daten sind alle Konten enthalten, welche im Zeitraum von 1.1.1993 bis 29.12.1997 eröffnet worden sind. Insgesamt sind 4'500 Konten in diesem Zeitraum eröffnet worden.  
 Die Daten der getätigten Transaktionen und Ausstelldaten der Kreditkarten reichen von 1993 bis zum Ende von 1998. Es scheint unwahrscheinlich, dass im Jahr 1998 keine weiteren Konten eröffnet worden sind. Es ist anzunehmen, dass die Daten über die Konten von 1998 nicht veröffentlicht worden sind.
@@ -37,6 +90,8 @@ ggplot(data_accounts_running_total, aes(x=date, y=accounts_running_total)) +
 ```
 
 Auffallend in der kumulierten Anzahl der Konten welche eröffnet wurden ist, dass der Zuwachs zwischen 1994 und 1997 unstetig ist. Zwischen 1994 und 1996 nimmt der Zuwach deutlich ab, wohin gegen mehr Konten im Jahr 1996 eröffnet wurden, als in den Jahren 1993 und 1997.
+
+## Geschlechterverteilung der Kunden
 
 ```{r echo=FALSE}
 data_count_by_gender <- get_count_by_gender()
@@ -51,7 +106,169 @@ ggplot(data_count_by_gender, aes(x=gender, y=count, fill=gender)) +
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
 
+## Analyse fehlende Werte in Tabelle "trans"
+
+In "trans" sind einige Werte in `k_symbol`, `bank`, `account` und `operation`: 'NA', ' '(leertaste), oder '0'. In diesem Abschnitt untersuche ich alle Vorkominisse dieser Unregelmässigkeiten, welche nicht in der Beschreibung erwähnt wurden, um die Daten besser zu verstehen und eventuell Unstimmigkeiten aufzudecken. Folgende Kombinationen von den erwähnten Werten in den Attributen sind aufgefallen:
+
+- x_1 = `k_symbol`(' '), `bank`('NA'), `account`('0'), `operation`('VYBER'): Barkredit (n=616)
+- x_2 = `k_symbol`(' '), `operation`('PREVOD NA UCET'): Überweisung an eine andere Bank (n=52817)
+
+- x_3 = `k_symbol`('NA'), `bank`('NA'), `account`('NA'), `operation`('VKLAD'): Geldeinzahlung des Kunden an die Bank (n=156743)
+- x_4 = `k_symbol`('NA'), `bank`('NA'), `account`('NA'), `operation`('VYBER'): Barkredit der Bank an den Kunden (n=263664)
+- x_5 = `k_symbol`('NA'), `bank`('NA'), `account`('0'), `operation`('VYBER KARTOU'): Geldauszahlung Kreditkarte (n=8036)
+
+- x_6 = `k_symbol`('NA'), `operation`('PREVOD NA UCET'): Überweisung an eine andere Bank (n=8155)
+- x_7 = `k_symbol`('NA'), `operation`('PREVOD Z UCTU'): Überweisung von einer anderen Bank (n=34888)
+
+- x_8 = `k_symbol`('UROK'), `bank`('NA'), `account`('NA'), `operation`('NA'): Zinsgutschrift der Bank an den Kunden (n=183114)
+- x_9 = `k_symbol`('SLUZBY'), `bank`('NA'), `account`('NA'), `operation`('VYBER'): Barkredit für das bezahlen einer Rechnung (n=155832)
+- x_10 = `k_symbol`('SANKC. UROK'), `bank`('NA'), `account`('NA'), `operation`('VYBER'): Negativzinsen, Gutschrift für die Bank (n=1577)
+- x_11 = `k_symbol`('UVER'), `bank`('NA'), `account`('NA'), `operation`('PREVOD NA UCET'): Geldüberweisung an eine UNBEKANNTE Bank (n=1)
+- x_12 = `k_symbol`('SIPO'), `bank`('NA'), `account`('0'), `operation`('VYBER'): Barkredit für Haushalt (n=2811)
+- x_13 = `k_symbol`('POJISTNE'), `bank`('NA'), `account`('0'), `operation`('VYBER'): Barkredit für Versicherungsrechnung (n=23)
+
+
+```{r echo = TRUE}
+analyze_na <- function(frame){
+  k_whitespace <- trans %>% dplyr::filter(k_symbol == ' ')
+  x_1 <- k_whitespace %>% dplyr::filter(is.na(bank) & account == 0) %>% dplyr::count()
+  x_2 <- k_whitespace %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  
+  k_na <- trans %>% dplyr::filter(is.na(k_symbol))
+  k_bank_na <- k_na %>% dplyr::filter(is.na(bank))
+  x_3 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VKLAD') %>% dplyr::count()
+  x_4 <- k_bank_na %>% dplyr::filter(is.na(account) & operation == 'VYBER') %>% dplyr::count()
+  x_5 <- k_bank_na %>% dplyr::filter(account == 0 & operation == 'VYBER KARTOU') %>% dplyr::count()
+  
+  x_6 <- k_na %>% dplyr::filter(operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_7 <- k_na %>% dplyr::filter(operation == 'PREVOD Z UCTU') %>% dplyr::count()
+  
+  bank_na <- trans %>% dplyr::filter(is.na(bank))
+  bank_account_na <- bank_na %>% dplyr::filter(is.na(account))
+  x_8 <- bank_account_na %>% dplyr::filter(k_symbol == 'UROK' & is.na(operation)) %>% dplyr::count()
+  x_9 <- bank_account_na %>% dplyr::filter(k_symbol == 'SLUZBY' & operation == 'VYBER') %>% dplyr::count()
+  x_10 <- bank_account_na %>% dplyr::filter(k_symbol == 'SANKC. UROK' & operation == 'VYBER') %>% dplyr::count()
+  x_11 <- bank_account_na %>% dplyr::filter(k_symbol == 'UVER' & operation == 'PREVOD NA UCET') %>% dplyr::count()
+  x_12 <- bank_na %>% dplyr::filter(k_symbol == 'SIPO' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  x_13 <- bank_na %>% dplyr::filter(k_symbol == 'POJISTNE' & account == 0 & operation == 'VYBER') %>% dplyr::count()
+  
+  print(paste('x_1:', x_1$n))
+  print(paste('x_2:', x_2$n))
+  print(paste('x_3:', x_3$n))
+  print(paste('x_4:', x_4$n))
+  print(paste('x_5:', x_5$n))
+  print(paste('x_6:', x_6$n))
+  print(paste('x_7:', x_7$n))
+  print(paste('x_8:', x_8$n))
+  print(paste('x_9:', x_9$n))
+  print(paste('x_10:', x_10$n))
+  print(paste('x_11:', x_11$n))
+  print(paste('x_12:', x_12$n))
+  print(paste('x_13:', x_13$n))
+  
+}
+
+analyze_na(trans)
+```
+
+## Undefinierter Transaktionstyp
+
+In diesem Abschnitt wird der `type` der Transaktionstabelle untersucht, da während der Vermögensanalyse grosse unstimmigkeiten bezüglich der Vermögensanalyse aufgefallen sind.
+Gemäss der Beschreibung sind folgende Werte definiert:
+
+- 'PRIJEM' steht für Geldzufluss
+
+- 'VYDAJ' steht für Geldabfluss
+
+Jedoch ist in der Datenbank ein dritter `type` 'VYBER' (n=16666) vorhanden. Dieser wird für eine vereinfachte Analyse auf 'VYDAJ' (was später zu abfluss umbenannt wird) umgewandelt, was bedenkenlos gemacht werden kann, da 'VYBER' in `type` nicht definiert ist und die geschätzten Vermögen aufgund der Konto Ein- und Ausgänge dem Kontostand `balance` des letzten Tages ziemlich Nahe kommen (siehe 'Delta Estimated Balance Comparison').
+
+```{r echo = TRUE}
+trans_type_vyber <- function(trans_frame){
+  ggplot2::ggplot(data = trans_frame) + 
+    ggplot2::geom_bar(mapping = aes(x = type, fill = type)) +
+    ggplot2::ggtitle('Anzahl Transaktionstypen') +
+  ggplot2::labs(x = 'Transaktionstyp', fill = 'Transaktionstyp')
+}
+
+trans_type_vyber(trans)
+```
+
+## Daten-Frames Anpassen
+
+Folgende Anpassungen werden vorgenommen:
+
+- Bei Zweideutigkeiten von von Variabelbenennungen wird der jeweilige Tabellenname kombiniert, um Komplikationen bei Joins zu vermeiden. Bsp: `date` von "trans" wird zu `trans_date`.
+
+- Koorektur von Fehlerhaften Werten, Bsp: `trans_type` 'VYBER' wird gemäss obiger Erkentniss zu 'abfluss'.
+```{r echo = TRUE}
+trans_altered <- alter_trans(trans)
+account_altered <- alter_account(account)
+disp_altered <- alter_disp(disp)
+card_altered <- alter_card(card)
+loan_altered <- alter_loan(loan)
+orders_altered <- alter_orders(orders)
+```
+
+## Orders ohne ausgeführte Transaktionen
+
+Während der Datenanalyse ist aufgefallen, dass nicht alle "orders" in "trans" abgebildet sind. Aus diesem Grund erfolgt eine Validierung, auf welchen "orders" überhaupt Transaktionen ausgeführt wurden. Geprüft wurde auf `account_id` und `account_to`, da in "trans" nicht die Verbindung zu "orders" direkt gegeben ist. Zusätzlich ist bei "orders" auch kein Anfangs- und Enddatum angegeben, was eine Validierung erschwert. Wenn eine Transaktion von deinem "account" zum in "orders" definierten `account_to` vorhanden ist, sowie der `amount` von "trans" und "orders" übereinstimmt, wurde die Order mit hoher Wahrscheinlichkeit ausgeführt. Somit werden hier diejenigen Transaktionen herausgefiltert, bei denen 100% nie eine Transaktion ausgeführt wurde.
+```{r echo = TRUE, fig.width = 10}
+validate_orders <- function(orders_frame, account_frame, trans_frame, combined = FALSE){
+  #' @description filters all orders where never a payment is registered in trans (based on account_to matching)
+  
+  orders_in_trans <- orders_frame %>%
+    dplyr::inner_join(account_altered, by = 'account_id') %>%
+    dplyr::inner_join(trans_frame, by = c('account_id', 'account_to' = 'account', 'amount' = 'trans_amount')) %>%
+    dplyr::select(account_id, account_to, amount, orders_k_symbol) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(shown_in_trans = TRUE)
+  
+  orders_not_in_trans <- orders_in_trans %>%
+    dplyr::rename(account_id_left = account_id, account_to_left = account_to, amount_left = amount, orders_k_symbol_left = orders_k_symbol) %>%
+    dplyr::right_join(orders_frame, by = c('account_id_left' = 'account_id', 'account_to_left' = 'account_to', 'orders_k_symbol_left' = 'orders_k_symbol')) %>%
+    dplyr::filter(is.na(amount_left)) %>%
+    dplyr::select(-amount_left) %>%
+    dplyr::rename(account_id = account_id_left, account_to = account_to_left, orders_k_symbol = orders_k_symbol_left) %>%
+    dplyr::mutate(shown_in_trans = FALSE)
+  
+  if(combined){
+    orders_combined <- orders_not_in_trans %>%
+      dplyr::select(account_id, account_to, amount, orders_k_symbol, shown_in_trans) %>%
+      dplyr::bind_rows(orders_in_trans)
+    return(orders_combined)
+  }else{
+    return(orders_not_in_trans)
+  }
+}
+
+visualize_orders_validation <- function(orders_frame, account_frame, trans_frame){
+  orders_labeled <- validate_orders(orders_frame, account_frame, trans_frame, TRUE)
+  
+  orders_labeled_plot <- ggplot2::ggplot(data = orders_labeled, aes(x = shown_in_trans, fill = orders_k_symbol)) + 
+    ggplot2::geom_bar() +
+    ggplot2::ggtitle('Orders, welche IN und NICHT IN Trans enthalten sind') +
+    ggplot2::labs(x = 'In Transaktionstabelle abgebildet', fill = 'k_symbol')
+  
+  orders_not_in_trans <- validate_orders(orders_frame, account_frame, trans_frame)
+  orders_not_in_trans_plot <- ggplot2::ggplot(data = orders_not_in_trans, aes(x = orders_k_symbol, fill = orders_k_symbol)) +
+    ggplot2::geom_bar() +
+    ggplot2::ggtitle('Verteilung der k_symbole, welche NICHT in Trans enthalten sind') +
+    ggplot2::labs(x = 'k_symbol', fill = 'k_symbol')
+  
+  print(orders_labeled_plot)
+  print(orders_not_in_trans_plot)
+}
+
+visualize_orders_validation(orders_altered, account_altered, trans_altered)
+```
+
+Die meisten "orders" sind in "trans" mindestens einmal ausgeführt worden. Jedoch wurde bei fast 400 "orders" niemals eine Transaktion ausgeführt. Ein Teil davon ist erklärbar, da es möglich ist, dass einige "orders" erst kürzlich erfasst wurden, und somit nie eine Zahlung ausgeführt werden konnte. Es ist jedoch überraschend auffällig, dass keine einzige `k_symbol` 'LEASING' ausgeführt wurde, obwohl in "orders" immer der `account_to`, `bank` und `amount` angegeben ist.
+
+Es wurde bereits erwähnt, dass der Verlauf der IDs diverser Tabellen nicht natürlich dem Zeitverlauf entsprechen. Daraus folgt, dass die DB künstlich im Nachhinein aufgesetzt wurde. Wir nehmen an, dass das Fehlen sämtlicher Orders 'LEASING' ein Fehler in der DB ist, das bei der Erstellung nicht genügend berücksichtigt wurde.
+
 # 2. Datenbasis
+
+## Altersverteilung der Kunden
 
 ```{r echo=FALSE}
 data_all_clients_age <- get_all_clients_age()
@@ -64,6 +281,8 @@ ggplot(data_all_clients_age, aes(x=age)) +
 Der grösste Anteil aller Kunden liegt im Alter zwischen 18 und 63 Jahre.
 
 # Regionen
+
+## Kundenverteilung nach Region
 
 ```{r echo = FALSE}
 all_clients_join_region_ctype <- get_all_clients_join_region_ctype()
@@ -188,6 +407,7 @@ Im zweiten Plot ist die Anzahl der ausgestellten Kredite auf einer Zeitachse dar
 - G: Vermögen 98'
 
 ## Korrelation Alter und Vermögen
+
 ```{r echo=FALSE}
 data_client_age_and_balance <- get_client_age_and_balance()
 cor <- cor(data_client_age_and_balance['age'], data_client_age_and_balance['avg_balance'])
@@ -197,10 +417,12 @@ ggplot(data_client_age_and_balance, aes(x=age, y=avg_balance)) +
   labs(title="Korrelation zwischen Alter und Durchschnittliches Vermögen", x="Alter", y="Durchschnittliches Vermögen")
 ```
 
-Untersucht wurde, ob eine Korrelation zwischen dem Alter und dem Durchschnittlichen Vermögen besteht. Der Korrelationskoeffizient beträgt `r cor`, womit eine stark negative Korrelation besteht. Das bedeutet, dass mit zunehmendem Alter das Vermögen abnimmt.
+Untersucht wurde, ob eine Korrelation zwischen dem Alter und dem Durchschnittlichen Vermögen besteht. Der Korrelationskoeffizient beträgt `r cor`, womit eine stark negative Korrelation besteht. Das bedeutet, dass mit zunehmendem Alter das Vermögen abnimmt, wobei der grösste Sprung zwischen 60 - 65 Jahren besteht.
 
 # Loans
+
 ## Verlgeich der Loans und Status nach Geschlecht
+
 ```{r echo = FALSE}
 
 loan_clients <- get_loan_clients()
@@ -317,24 +539,9 @@ Das Timeframe wurde dabei so gesetzt, dass alle Kunden die eine Kreditkarte im J
 Die Diagramme zeigen, dass der Grossteil der Kunden, welche einen Kredit oder einen Dauerauftrag vor dem Kauf einer Kreditkarte initialisiert haben, die Dienstleistung ein bis zwei Jahre vorher bezogen haben. Es ist auch zu sehen, dass vor der Anzahl her die meisten Kartennutzer bereits eine Dienstleistung besitzen.
 Dieser Aspekt der Dienstleistung wäre somit bei der Auswahl an bestehenden Kunden etwas, was man berücksichtigen könnte.
 
-
-
-
-
-
-- G: Beweis Account nur ein loan
-- S: Loan amount on card type: Wenig Daten, vorsicht lieber Simon. -> Nicht reinnehmen, da zu wenig Daten und nicht aussagekräftig
-- S: Visualisierung Kunde nmit Karte bezahlen Loans eher zurück
-
-# Karten
-- S: Number of counts for each service construct + Time-Frame anpassen!
-
-# Trans
-- G: Genauigkeitsüberprüfung
-- G: Analyse fehlende Werte
-- G: Warum VYBER?
-
 # 5. Kreditkarten
+
+## Kartentypen
 
 ```{r echo=FALSE}
 data_card_count_by_card_type <- get_card_count_by_card_type()
@@ -348,9 +555,12 @@ Insgesamt sind 892 Kreditkarten im Umlauf:
 
 * 659 Classic
 * 145 Junior
-* 88 Gold.
+* 88 Gold
+
+Die Verteilung der Karten unterscheidet sich stark. Der `card_type` 'classic' ist relativ gesehen übervertreten. Da 'gold' und 'junior' eine ziemlich kleine Dichte aufweisen, müssen wir bei der Wahl des Timeframes vorsichtig vorgehen, um noch genügend Kunden mit 'gold' und 'junior' in der Analyse mit dabei zu haben.
 
 ## Verteilung der Kreditkarten pro Account und Disponent
+
 ```{r echo=FALSE}
 data_distinct_accounts_by_card <- get_distinct_accounts_by_card()
 head(data_distinct_accounts_by_card)
@@ -368,6 +578,21 @@ Aus der Beschreibung der Daten geht jedoch hervor, dass es erlaubt ist, mehrere 
 Ein zusätzliches Business könnte also sein, weitere Kreditkarten für die selben Konten an Disponenten zu vergeben.  
 Hier ist zuerst mit der Bank zu prüfen, ob es einen Grund gibt, warum dies nicht bereits so gehandhabt wurde.
 
+## Produkteselektion Cross-Selling
+
+Gemäss unserem Auftrag müssen wir mit bestehenden Produkten einen Mehrwert an bestehende Kunden generieren, also Cross-Selling betreiben. Gemäss dem Entity Relationship Model (ERD) und der darauf basierenden Datenanalyse bezüglich dem Kundenanteil, die dieses Produkt bereits haben, haben wir 2 potentielle Produkte evaluiert:
+
+- Loan
+
+- Kreditkarten
+
+Beide haben gemäss der Datenanalyse einen tiefen Durchdringungsgrad im bestehenden Kundenstamm, und sind somit beide lukrativ.
+Wir fokusieren unsere weitere Arbeit auf Kreditkarten, da wir der Auffassung sind, dass diese von mehr Kunden benötigt wird. Dabei steckt folgende Überlegung:
+
+Wir halten es nicht für sinnvoll, jemandem eine Loan zu verkaufen, da dieses Bedürfnis eher vom Kunden her selbst kommt. Von Kreditkarten jedoch kann beinahe jeder Kunde profitieren, da diese in einigen Bereichen das Leben vereinfacht und keine wirklichen Nachteile mit sich zieht. Daher fokussiert sich unsere künftigen Analysen auf Kreditkarten.
+
+## Kundenalter bei Ausstellung einer Kreditkarte
+
 ```{r echo=FALSE}
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
 
@@ -381,6 +606,8 @@ ggplot(data = data_client_age_by_issued_date, mapping = aes(x = age_on_card_issu
 
 Gemäss den Daten wird die Junior-Kreditkarte nur an unter 25 Jährige vergeben.
 Da laut den Daten 55 Kunden unter 18 Jahren sind welche eine Kreditkarte erhalten haben, scheint es erlaubt zu sein, Kreditkarten an nicht volljährige Personen zu vergeben.
+
+## Kundenalter Kreditkartenerwerber vs. nicht-Kreditkartenerwerber
 
 ```{r echo=FALSE}
 data_client_age_by_issued_date <- get_client_age_by_issued_date()
@@ -414,7 +641,9 @@ ggplot() +
 
 Die blaue Linie ist das Alter der Kunden bei ausstellung der Kreditkarte. Die rote Linie sind alle Kunden und Alter welche keine Kreditkarte haben zum Stichtag 31.12.1998.
 
-Da ausgestellte Kreditkarten ab 55-jährige rasant abnimmt, macht es keinen Sinn, über 55 Jährige die Kreditkarte zu bewerben.
+Da ausgestellte Kreditkarten ab 55-jährige rasant abnimmt, ist es unseres Erachtens sinnvoller, über 60 Jährige nicht mehr für den Erwerb einer Kreditkarte zu empfehlen.
+
+Die Rasante Abnahme des Kreditkartenerwerbes ab 60 Jahren hat eine sehr grosse Ähnlichkeit mit der Korrelationsanalyse vom Kapitel *Korrelation Alter und Vermögen*. Daher gehen wir davon aus, dass zwischen dem Vermögen eines Kunden und dem Kreditkartenerwerbes ein starker Zusammenhang besteht. 
 
 ## Kunden ohne Kreditkarten
 
@@ -432,6 +661,601 @@ Die ersten 6:
 data_clients_wihtout_credit_card_by_age_range_24_100 <- get_clients_without_credit_card_by_age_range(24, 100)
 head(data_clients_wihtout_credit_card_by_age_range_24_100)
 ```
+
+# Transaktionen
+
+## Vermögensverteilung der Bank
+
+Um eine Übersicht über die Vermögensverhältnisse der Bankkunden zu erhalten, wird hier das Vermögen der Kunden am 31.12.1998 sowie einiger statistischer Kennwerte ausgewiesen. Dies dient einerseits der Validierung und ist zugleich ein Vergleichswert späterer Analysen.
+Um die Vermögensverteilung adequat auszuweisen, wird auf eine multivariate Darstellung verzichtet, und eine Kernel-Density-Estimation (KDE) über die Verteilung gezogen. Dies wiederspiegelt nicht genau die wahren Dichteverhältnisse der Verteilung. Sie hilft jedoch, schnell und einfach einen Überblick über die Vermögensverteilung zu erhalten.
+Es ist wichtig zu erwähnen, dass es sich hierbei um geschätzte Endvermögen handelt, d.h. es können kleinere Abweichungen vom realen Endvermögen entstehen, da die in "Erste Erkentnisse" erwähnten Sortierungsprobleme hier eine Rolle spielen. Die Abweichungen sollten sich jedoch im Rahmen halten, wie in "Delta Estimated Balance Comparsion" ersichtlich ist.
+
+```{r echo = TRUE}
+balance_account <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date){
+  min_date <- as.Date(min_date)
+  max_date <- as.Date(max_date)
+  account_balance <- trans_frame %>% 
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id)
+  return(account_balance)
+}
+
+balance_distribution <- function(trans_frame, min_date = lowest_trans_date, max_date = highest_trans_date, binwidth = 2000){
+  balances <- balance_account(trans_frame, min_date, max_date)
+  ggplot2::ggplot(data = balances, aes(balance)) + 
+  ggplot2::geom_density(aes(y =..density..), alpha = 0.85, fill = cbPalette[1]) +
+  ggplot2::scale_x_continuous(labels = scales::comma) +
+  ggplot2::labs(title = paste0('Vermögensverteilung ', max_date), x = 'Vermögen', y = 'Dichte')
+}
+
+b_acc <- balance_account(trans_altered)
+base::summary(b_acc$balance)
+
+balance_dist <- balance_distribution(trans_altered)
+balance_dist
+```
+
+Eine Minderheit der Accounts hat ein negatives Saldo auszuweisen. Dies ist am klaren Anstieg der Dichtekurve der Vermögensverteilung nach dem Nullpunkt ersichtlich. Der Modus befindet sich etwa bei 25'000 Kronen, welcher sich unter dem Median (38495) und Mittelwert (43809) befindet, da die Kurve klar rechtsschief ist. Die meisten Accounts haben zwischen 10'000 und 100'000 Kronen Vermögen auszuweisen.
+Da es nach oben und unten keine wirklichen Ausreisser hat, schliesse ich daraus, dass es wahrscheinlich entweder ein nicht zufälliger selektierter Teilausschnitt einer Datenbank ist, oder die Daten komplett random generiert wurden.
+
+## Account Vermögen und Vermögensveränderungen
+Einerseits ist es interessant, wie sich die Kartentypen `card_type` bezüglich Vermögen und Vermögensversänderung unterscheiden. Andererseits müssen wir auch untersuchen, wie sich die Kartenbesitzer von den nicht-Kartenbesitzer unterscheiden. Folglich werden die Daten entsprechend vorbereitet. Eine Beschreibung der Analyse ist bei den Plots angesiedelt.
+
+Erstellung des Daten-Frames zur monatlichen, jährlichen und absoluten Vermögensveränderung.
+
+```{r echo = TRUE ,warning = FALSE}
+balance_delta <- function(balances){
+  return(c(NA, diff(balances)))
+}
+
+balance_delta_initial <- function(balances){
+  return(c(balances[1], diff(balances)))
+}
+
+balance_growth_end_of_years <- function(trans_frame, with_initial_balance = FALSE){
+  #' @description returns the yearly balance at end of year of each customer
+  
+  bal_grw <- trans_frame %>%
+    dplyr::mutate(year = format(trans_date, '%Y')) %>%
+    dplyr::group_by(account_id, year) %>%
+    dplyr::filter(trans_date == max(trans_date)) %>%
+    dplyr::filter(trans_id == max(trans_id)) %>%
+    dplyr::arrange(account_id, trans_date)
+   
+  if (with_initial_balance){
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta_initial)))
+  }else{
+    bal_grw$balance_delta <- as.numeric(unlist(by(bal_grw$balance, bal_grw$account_id, balance_delta)))
+  }
+  return(bal_grw)
+}
+
+customer_balance_change_estimation <- function(trans_frame, without_initial_balance = FALSE, min_date = lowest_trans_date, max_date = highest_trans_date, join_data_frame = NA){
+  #' @description returns the estimated income and expenses, total and monthly, from each customer. In addition, the already jointed data frame 'card', 'disp' & 'account' can be given in `join_data_frame` to get the account and card specific data at the time of the customer's receipt of their credit card.
+  
+  cust_bal_ch <- trans_frame
+  
+  if(without_initial_balance){#filters opening balance if one is interested just in the estimated income
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(trans_date != min(trans_date))
+  }
+  
+  if(is.na(join_data_frame)){
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type) %>%
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }else{
+    cust_bal_ch <- cust_bal_ch %>%
+      dplyr::inner_join(join_data_frame, by = 'account_id') %>%
+      dplyr::group_by(account_id) %>%
+      dplyr::filter(trans_date < issued) %>%
+      dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+      dplyr::group_by(account_id, trans_type, card_type) %>% #including card_type
+      dplyr::summarise(balance_change = sum(trans_amount))
+  }
+  
+  cust_bal_ch$balance_delta <- (as.numeric(unlist(by(cust_bal_ch$balance_change, cust_bal_ch$account_id, balance_delta))))
+  
+  cust_bal_ch <- trans_frame %>%
+    dplyr::filter(trans_date >= min_date & trans_date <= max_date) %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::summarise(duration_month = (zoo::as.yearmon(max(trans_date)) - zoo::as.yearmon(min(trans_date))) * 12 + 1) %>% #diff num of months
+    dplyr::inner_join(cust_bal_ch, by = 'account_id') %>%
+    dplyr::mutate(monthly_change = balance_change / duration_month) %>%
+    dplyr::mutate(monthly_balance_delta_change = balance_delta / duration_month)
+  
+  return(cust_bal_ch)
+}
+```
+
+```{r echo = TRUE, warning = FALSE}
+card_balance_change_correlation <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description gets the dataframe of the balance_change until the date the credit card is issued
+  prep_frame <- card_frame %>%
+    dplyr::inner_join(disp_frame, by = 'disp_id') %>%
+    dplyr::inner_join(account_frame, by = 'account_id')
+  
+  return(customer_balance_change_estimation(trans_frame = trans_frame, join_data_frame = prep_frame))
+}
+
+plot_balance_change <- function(trans_frame, account_frame, disp_frame, card_frame){
+  #' @description balance_plot controller
+  df_cbcc <- card_balance_change_correlation(trans_frame, account_frame, disp_frame, card_frame)
+  df_zufluss <- df_cbcc %>% dplyr::filter(trans_type == 'zufluss')
+  adjust_value <- 1.5
+  alpha_value <- 0.4
+  title_size <- 16
+    
+  flow_total <- ggplot2::ggplot(data = df_cbcc, aes(x = balance_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = adjust_value, alpha = alpha_value) +
+    ggplot2::xlab(money) +
+    ggplot2::ggtitle('Geldfluss Total vor Kartenausstellung') +
+    hrbrthemes::theme_ipsum(plot_title_size = title_size) +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type) +
+    ggplot2::labs(x = 'Geldfluss Total', y = dens, fill = card_t) +
+    scale_fill_cb
+  
+  flow_monthly <- ggplot2::ggplot(data = df_cbcc, aes(x = monthly_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = adjust_value, alpha = alpha_value) +
+    ggplot2::xlab(money) +
+    ggplot2::ggtitle('Durchschnittlicher monatlicher Geldfluss vor Kartenausstellung') +
+    hrbrthemes::theme_ipsum(plot_title_size = title_size) +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::facet_wrap(~ trans_type) +
+    ggplot2::labs(x = 'Durchschnittlicher monatlicher Geldfluss', y = dens, fill = card_t) +
+    scale_fill_cb
+  
+  balance_delta_total <- ggplot2::ggplot(data = df_zufluss, aes(x = balance_delta, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = adjust_value, alpha = alpha_value) +
+    ggplot2::xlab(money) +
+    ggplot2::ggtitle('Vermögen bei Kartenausstellung') +
+    hrbrthemes::theme_ipsum(plot_title_size = title_size) +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::labs(x = bal, y = dens, fill = card_t) +
+    scale_fill_cb
+  
+  balance_delta_monthly <- ggplot2::ggplot(data = df_zufluss, aes(x = monthly_balance_delta_change, group = card_type, fill = card_type)) +
+    ggplot2::geom_density(adjust = adjust_value, alpha = alpha_value) +
+    ggplot2::xlab(money) +
+    ggplot2::ggtitle('Durchschnittliche monatliche Vermögensveränderung vor Kartenausstellung') +
+    hrbrthemes::theme_ipsum(plot_title_size = title_size) +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::labs(x = 'Durchschnittliche monatliche Vermögensveränderung', y = dens, fill = card_t) +
+    scale_fill_cb
+    
+  
+  assign('flow_total', flow_total, envir = .GlobalEnv)
+  assign('flow_monthly', flow_monthly, envir = .GlobalEnv)
+  assign('balance_delta_total', balance_delta_total, envir = .GlobalEnv)
+  assign('balance_delta_monthly', balance_delta_monthly, envir = .GlobalEnv)
+  balance_delta_monthly_summary <- tapply(df_zufluss$monthly_balance_delta_change, df_zufluss$card_type, summary)
+  assign('balance_delta_monthly_summary', balance_delta_monthly_summary, envir = .GlobalEnv)
+}
+plot_balance_change(trans_altered, account_altered, disp_altered, card_altered)
+```
+
+## Genauigkeitsüberprüfung der Einkommens- und Vermögensschätzung
+
+Bevor mit weiteren Analysen auf Stufe Kreditkarte fortgefahren wird, ist es sinnvoll, die geschätzten Vermögen und Vermögensveränderungen zu validieren. Dies stellt sicher, dass angenommen werden kann, dass die in "trans" enthaltenen Transaktionen korrekt sind und um den geschätzten Werte entsprechend Gewicht beizumessen.
+Verglichen werden die Endwerte `balance` von den einzelnen "accounts" sowie der Addition aller Einnahmen `zufluss` und Subtraktion aller Ausgaben `abfluss`, welche in `balance_delta` ausgewiesen werden.
+
+```{r echo = TRUE}
+check_balance_change_estimation <- function(){
+  estimation <- customer_balance_change_estimation(trans_frame = trans_altered)
+
+  estimation <- estimation %>%
+    dplyr::filter(trans_type == 'zufluss') %>%
+    dplyr::select(account_id, balance_delta)
+  
+  balances <- balance_account(trans_altered)
+  balances <- balances %>%
+    dplyr::select(account_id, balance)
+  
+  comparison_frame <- estimation %>%
+    dplyr::inner_join(balances, by = 'account_id') %>%
+    dplyr::mutate(delta = abs(balance - balance_delta))
+  
+  #alter to eliminate outliers to get a better plot
+  comparison_frame_altered <- comparison_frame %>%
+    dplyr::filter(delta < 250)
+  
+  comparison_plot <- ggplot2::ggplot(comparison_frame_altered, aes(delta)) +
+    ggplot2::geom_histogram(aes(y = ..count..), binwidth = 5, fill = cbPalette[1]) +
+    ggplot2::labs(title = 'Vergleich (Delta) geschätzte Vermögen', x = 'Delta Vermögen', subtitle = 'Binbreite: 5')
+  
+  print(base::summary.data.frame(comparison_frame %>% dplyr::select(-account_id)))
+  print(comparison_plot)
+}
+
+check_balance_change_estimation()
+```
+
+Die Abweichung des geschätzten Vermögens und der Geldflüsse ist relativ gesehen gering. Dies bestätigt die Korrektheit der in `amount` enthaltenen Transaktionswerte. Die meisten Abweichungen liegen zwischen den Werten 5.4 und 17.0. Die Maximaldifferenz liegt bei 1200.3. Die grösseren Abweichungen sind dadurch erklärbar, da es sich bei den abgefragten Vermögensendbeständen `balance` lediglich um Schätzwerte handelt, da die Transaktionen nicht sauber sortiert werden konnten. Die kleineren Abweichungen können dadurch erklärt werden, dass sich bei in `amount` um mathematisch korrekt gerunde Werte handelt. Die Summe all dieser Rundungsfehler kann bei mehreren Dutzend Transaktionen zu einer absoluten Abweichung im geschätzten Vermögen im zweistelligen Bereich führen.
+
+
+## Vermögensveränderung und Vermögen der Kreditkartenbesitzer
+
+Wir haben die Annahme, dass sich das Vermögen und die Vermögensveränderung der Kreditkartenbesitzer der verschiedenen Kartentypen `card_type` 'classic', 'gold' und 'junior' voneinander unterscheiden. Aus diesem Grund wird das Vermögen und die Vermögensveränderung der Kreditkartenbesitzer verglichen. Der gewählte Zeitraum bezieht sich hierbei bei der Vermögensveränderung über den ganzen Zeitraum der verfügbaren Daten des Kunden bis zum Zeitpunkt des Kreditkartenerwerbs. Beim Vergleich der Vermögen wird die letzte `balance` zum Zeitpunkt des Kartenerwerbes berücksichtigt.
+
+Diese Analyse hat den Zweck, um die Unterschiede zwischen den verschiedenen Kartentypen `card_type` aufzuzeigen, um Aussagen bezüglich Vermögen und Vermögensveränderungen auf potentielle Kunden bezüglich Kreditkarten machen zu können. Hierbei werden alle jemals erstellten Kreditkarten berücksichtigt.
+
+### Geldfluss Total vor Kartenausstellung
+
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+flow_total
+```
+
+Die Totalen Kontoeinzahlungen und Auszüge sind ziemlich ähnlich, was nicht überraschend ist, da wir gemäss Vermögensanalyse keine Ausreisser haben. Bei dieser Analyse ist ersichtlich, dass es grosse Unterschiede zwischen den gesamten Vermögenszu- und Abflüsse zeischen 'gold' und den beiden anderen Kartentypen gibt. Diese Verteilung ist jedoch mit Vorsicht zu geniessen, da es "accounts", die nicht schon über einen längeren Zeitraum bei der Bank sind, entsprechend benachteiligt.
+
+### Durchschnittlicher monatlicher Geldfluss vor Kartenausstellung
+
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+flow_monthly
+```
+
+Bei dieser Darstellung werden die Nachteile der *Geldfluss Total vor Kartenausstellung* Vermögensflüsse ausgehebelt, dass erst kürzlich beigetretene Bankkunden in der Analyse benachteiligt werden, da die Veränderungen auf den Durchschnitt pro Monat dargestellt werden. Es kann sogar sein, dass erst kürzlich der Bank beigetretene Kunden stärker gewichtet werden, da das Initial eingezahlte Vermögen tendenziell grösser sein kann, als die danach durchschnittlich ein- und ausbezahlten monatlichen Beträge.
+Nichtsdestotrotz zeichnet sich ein ähnliches Bild der jeweiligen Kartentypen an, wie bei *Geldfluss Total vor Kartenausstellung*.
+
+### Vermögen zum Zeitpunkt der Kartenausstellung
+
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+balance_delta_total
+```
+
+Hier zeigt es klare Unterschiede zwischen den jeweiligen Kartentypen bezüglich des Vermögens zum Zeitpunkt der Kreditkartenbeantragung. Vermögendere Kunden beziehen eher eine 'gold' Karte. Die 'classic' Kunden befinden sich im Mittelfeld. Am wenigsten Vermögen haben im Schnitt die 'junior' Kunden, wobei sich die 'junior' und 'classic' Kunden nicht so stark unterscheiden, wie die 'gold' Kunden zu den anderen Beiden.
+
+### Durchschnittliche monatliche Vermögensveränderung vor Kartenausstellung
+
+```{r echo = TRUE, warning = FALSE, fig.width = 10}
+balance_delta_monthly
+balance_delta_monthly_summary
+```
+
+Hierbei wird die monatliche Vermögensveränderung, bevor die Karte beantragt wurde, berücksichtigt. Bei diesem Plot halten sich die Ausreisser in Grenzen, da bei jeder Kunde, der eine Kreditkarte beantragt hatte, mindestens 6 Monate Kunde war. Damit ist zwar sichergestellt, dass das Initial eingezahlte Vermögen hierbei einen reduzierteren Einfluss hat, trotzdem wird es stärker gewichtet, als bei Kunden, die bisher länger bei der Bank Kunden sind.
+Es gibt Unterschiede bezüglich Mittelwert aller drei Kartentypen sowie vom Median von 'junior' zu den anderen beiden Typen. Somit lässt sich daraus schliessen, dass Kunden, welche eine höheren mittleren Vermögenszuwachs haben, eher für eine höher gestufte Karte geeignet ist in der Annahme, dass die bisher vergebenen Kreditkarten gut verteilt wurden. Die Unterschiede halten sich jedoch in Grenzen.
+
+
+## Vermögen und Geldflüsse der Kunden, die 1998 eine Kreditkarte erwarben
+
+Hier werden Kunden, die im Jahr 1998 eine Kreditkarte erworben haben mit Kunden Ende 1998 verglichen, um Unterschiede und Gemeinsamkeiten bezüglich des Vermögens und der Geldflüsse. Kunden aller hier gewählten gewählten Timeframes wurden folgendermassen behandelt:
+
+- **Kreditkartenbesitzer**, die im Jahr 1998 eine Kreditkarte erwarben, wurden zum Zeitpunkt des Kreditkartenerwerbes minus 1 Jahr berücksichtigt. Somit sind die Daten der Kreditkartenbesitzer von 1997 - 1998.
+
+- **NICHT Kreditkartenbesitzer**, sind Anfangs bis Ende 1998 berücksichtigt worden.
+
+Das Timeframe ist so gewählt, dass die Kunden auf vernünftiger Weise miteinander verglichen werden können. Die Abweichung der zu vergleichenden Datenobjekte beträgt somit maximal 1 Jahr.
+
+```{r echo = TRUE}
+get_balance_inf <- function(trans_frame){
+  balances <- balance_account(trans_frame)
+  
+  inflow_outflow <- trans_frame %>%
+    dplyr::group_by(account_id, trans_type) %>%
+    dplyr::summarise(balance_change = sum(trans_amount))
+  
+  inflow_outflow$balance_delta <- (as.numeric(unlist(by(inflow_outflow$balance_change, inflow_outflow$account_id, balance_delta))))
+  
+   inflow_outflow <- inflow_outflow %>%
+     dplyr::group_by(account_id) %>%
+     dplyr::mutate(abfluss = balance_change, zufluss = dplyr::lag(balance_change)) %>%
+     dplyr::select(account_id, abfluss, zufluss, balance_delta) %>%
+     dplyr::filter(!is.na(zufluss)) %>%
+     dplyr::inner_join(balances, by = 'account_id') %>%
+     dplyr::select(account_id, account_date, abfluss, zufluss, balance_delta, balance, card_type, account_divisor_months)
+  
+  return(inflow_outflow)
+}
+
+card_purch_comp <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date){
+  #' @description card purchasing comparison
+  #' prepares the dataframe respecting the accounts with a credit card and of accounts with no credit cards of the given time interval
+  #' considers the absolute and monthly balance data of the accounts
+  inc_offset_days <- (ending_date - start_date) + 1
+  month_diff <- (zoo::as.yearmon(ending_date) - zoo::as.yearmon(start_date)) * 12 + 1
+  
+  account_cards <- account_frame %>%
+    dplyr::inner_join(disp_frame, by = 'account_id') %>%
+    dplyr::filter(disp_type == 'OWNER') %>%
+    dplyr::left_join(cards_frame, by = 'disp_id') %>%
+    dplyr::select(account_id, account_date, frequency, card_type, issued)
+  
+  #time frame (card-issued minus day_difference(start_date, ending_date)) until card-issued 
+  accounts_with_cards <- account_cards %>%
+    dplyr::filter(!is.na(card_type)) %>%
+    dplyr::filter(issued >= start_date & issued <= ending_date) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= issued & trans_date > (issued - inc_offset_days)) %>%
+    dplyr::mutate(account_divisor_months = min(((zoo::as.yearmon(issued) - zoo::as.yearmon(account_date)) * 12 + 1), month_diff))
+  
+  #time-frame start_date until end_date
+  accounts_without_cards <- account_cards %>%
+    dplyr::filter(is.na(card_type)) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= ending_date & trans_date >= start_date) %>%
+    dplyr::select(-issued) %>%
+    dplyr::mutate(account_divisor_months = min(((zoo::as.yearmon(ending_date) - zoo::as.yearmon(account_date)) * 12 + 1), month_diff))
+  
+  balance_inf_without_cards <- get_balance_inf(accounts_without_cards)
+  balance_inf_with_cards <- get_balance_inf(accounts_with_cards)
+  
+  result_frame <- balance_inf_without_cards %>%
+    dplyr::union(balance_inf_with_cards) %>%
+    dplyr::mutate(monthly_abfluss = (abfluss / account_divisor_months), monthly_zufluss = (zufluss / account_divisor_months),
+                  monthly_balance_delta = (balance_delta / account_divisor_months), 
+                  avg_balance = balance - (monthly_balance_delta * (account_divisor_months / 2))) %>%
+    dplyr::ungroup()
+  
+  result_frame$card_type[is.na(result_frame$card_type)] <- 'no_card'
+  
+  return(result_frame)
+}
+
+#card_purch_comp(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'))
+```
+
+
+```{r warning = FALSE, fig.width = 8}
+plot_balance_cards_comp <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date, var_1, var_2, var_3, var_4, var_5, stat_inf){
+  #' @description provides credit card specific plots in the global environment with the given var_<number> names & the according statistical information in the given var_<number>_summary variables.
+  #' credit card holders with purchase in the specified period were considered as well as their information from the time of credit card purchase - length of the specified timeframe
+  #' for non-credit card holders, the data is taken into account throughout the specified time interval
+  #' - balance_total at the end of the timeframe
+  #' - balance_average (begin_balance + end_balance) / 2 --- customers who weren't there from the beginning of the timeframe were filtered out.
+  #' - balance_change monthly during the specified timeframe
+  #' - flow_abfluss means monthly withdrawal of money in the specified timeframe
+  #' - flow_zufluss means monthly inflow of money in the specified timeframe
+  month_diff <- (zoo::as.yearmon(ending_date) - zoo::as.yearmon(start_date)) * 12 + 1
+  prep_frame <- card_purch_comp(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date)
+  adjust <- 1
+  alpha <- 0.4
+  violin_width = 1.1
+  boxplot_width <- 0.1
+  boxplot_color <- 'black'
+  boxplot_alpha <- 0.2
+  title_size <- 11
+  frame_year <- format(ending_date, '%Y')
+  
+  balance_total <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = balance, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = boxplot_width, color = boxplot_color, alpha = boxplot_alpha) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = title_size)) +
+    ggplot2::ggtitle(paste0('Gesamtvermögen Ende Timeframe ', frame_year)) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = card_t, y = bal, fill = card_t) +
+    scale_fill_cb
+
+  prep_frame_altered <- prep_frame %>% dplyr::filter(account_divisor_months == month_diff)
+  balance_avg <- ggplot2::ggplot(data = prep_frame_altered, aes(x = card_type, y = avg_balance, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = boxplot_width, color = boxplot_color, alpha = boxplot_alpha) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = title_size)) +
+    ggplot2::ggtitle(paste0('Durchschnittliches Vermögen Timeframe ', frame_year)) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = card_t, y = 'Avg Vermögen', fill = card_t) +
+    scale_fill_cb
+  
+  balance_change <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_balance_delta, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = boxplot_width, color = boxplot_color, alpha = boxplot_alpha) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = title_size)) +
+    ggplot2::ggtitle(paste0('Durchschnittliche monatliche Vermögensveränderung Timeframe ', frame_year)) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = card_t, y = 'Avg Vermögensveränderung', fill = card_t) +
+    scale_fill_cb
+  
+  flow_abfluss <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_abfluss, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = boxplot_width, color = boxplot_color, alpha = boxplot_alpha) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = title_size)) +
+    ggplot2::ggtitle(paste0('Durchschnittlicher monatlicher Geldabfluss Timeframe ', frame_year)) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = card_t, y = 'Avg Geldabfluss', fill = card_t) +
+    scale_fill_cb
+  
+  flow_zufluss <- ggplot2::ggplot(data = prep_frame, aes(x = card_type, y = monthly_zufluss, fill = card_type)) +
+    ggplot2::geom_violin(width = violin_width) +
+    ggplot2::geom_boxplot(width = boxplot_width, color = boxplot_color, alpha = boxplot_alpha) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::theme(legend.position = 'none', plot.title = element_text(size = title_size)) +
+    ggplot2::ggtitle(paste0('Durchschnittlicher monatlicher Geldzufluss Timeframe ', frame_year)) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = card_t, y = 'Avg Geldzufluss', fill = card_t) +
+    scale_fill_cb
+  
+  balance_total_summary <- tapply(prep_frame$balance, prep_frame$card_type, summary)
+  balance_avg_summary <- tapply(prep_frame_altered$avg_balance, prep_frame_altered$card_type, summary)
+  balance_change_summary <- tapply(prep_frame$monthly_balance_delta, prep_frame$card_type, summary)
+  flow_abfluss_summary <- tapply(prep_frame$monthly_abfluss, prep_frame$card_type, summary)
+  flow_zufluss_summary <- tapply(prep_frame$monthly_zufluss, prep_frame$card_type, summary)
+  
+  counts <- prep_frame %>%
+    dplyr::group_by(card_type) %>%
+    dplyr::count()
+  
+  #assign plots to .GlobalEnv
+  assign(var_1, balance_total, envir = .GlobalEnv)
+  assign(paste0(var_1, '_summary'), balance_total_summary, envir = .GlobalEnv)
+  assign(var_2, balance_avg, envir = .GlobalEnv)
+  assign(paste0(var_2, '_summary'), balance_avg_summary, envir = .GlobalEnv)
+  assign(var_3, balance_change, envir = .GlobalEnv)
+  assign(paste0(var_3, '_summary'), balance_change_summary, envir = .GlobalEnv)
+  assign(var_4, flow_abfluss, envir = .GlobalEnv)
+  assign(paste0(var_4, '_summary'), flow_abfluss_summary, envir = .GlobalEnv)
+  assign(var_5, flow_zufluss, envir = .GlobalEnv)
+  assign(paste0(var_5, '_summary'), flow_zufluss_summary, envir = .GlobalEnv)
+  assign(stat_inf, counts, envir = .GlobalEnv)
+}
+plot_balance_cards_comp(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'), 'balance_total_1998', 'balance_avg_1998', 'balance_change_1998', 'flow_abfluss_1998', 'flow_zufluss_1998', 'counts_1998')
+```
+
+## Resultate von `r counts_1998$n[1]` 'classic', `r counts_1998$n[2]` 'gold', `r counts_1998$n[3]` 'junior' und `r counts_1998$n[4]` 'no_cards' Accounts von 1998
+
+### Vermögen Total 1998
+
+```{r echo = FALSE, warning = FALSE}
+balance_total_1998
+balance_total_1998_summary
+```
+
+Das Vermögen der "accounts" bezüglich Mittelwert und Median, welche eine Kreditkarte erwarben, verglichen mit denjenigen, welche ende 1998 noch keine Kreditkarten besitzen, unterscheidet sich signifikant. Ebenfalls fällt auf, dass kein einziger Account ein negatives Vermögen zum Zeitpunkt des Kreditkartenerwerbes hat. Auch die Quantile (1st und 3rd) sind bei den Kreditkartenerwerbern merklich höher.
+
+Auch das Vermögen derjenigen Accounts, welche 1998 eine Kreditkarte erworben haben, unterscheidet sich massgeblich. 'junior' Accounts haben eher tiefere statistische Werte verglichen mit 'accounts'. Am stärksten jedoch ist der Unterschied zwischen den 'gold' Karten verglichen mit den anderen beiden.
+
+Daraus lässt sich schliessen, dass Accounts, welche ein höheres Vermögen besitzen, sich eher für den Erwerb einer Kreditkarte eignen. Auch kann gesagt werden, dass wenn eine Kreditkarte beantragt wird, sich höhere Vermögen für eine höherwertige Kreditkarte eignen, wobei die Reihenfolge 'junior' < 'classic' < 'gold' ist.
+
+### Durchschnittliches Vermögen 1998
+
+```{r echo = FALSE, warning = FALSE}
+balance_avg_1998
+balance_avg_1998_summary
+```
+
+Die Verteilung des durchschnittlichen Vermögens ist dem des *Vermögen Total 1998* sehr ähnlich. Hierbei wird der Mittelwert des Anfangs- und den des Endbestandes berücksichtigt. z.B. AB = 10'000 und EB = 20'000, somit ist das mittlere Vermögen (AB + EB) / 2 = 15'000. Da dies kein genauer Wert ist, sondern lediglich eine Schätzug, müssen Accounts, welche nicht über den ganzen Zeitraum Kunde sind, von der Analyse wegfallen. Dies, weil die Schätzung dieser Werte zu stark verfälscht sind, da der AB immer 0 ist, und somit das durchschnittliche Vermögen die Hälfte des EB ist, was offensichtlich ziemlich ungenau ist.
+
+Um einen Überblick über die korrekten durchschnittlichen Vermögen zu erhalten, wäre eine Gewichtung der `balance` jedes Accounts entsprechend der Dauer bis zur nächsten Transaktion des gleichen Accounts von Nöten. Also z.B. 10'000 Kronen sind genau 3 Tage auf dem Konto, wobei nach diesen 3 Tagen eine Transaktion folgt, wobei danach nur noch 5'000 Kronen für den Rest des Jahres auf dem Konto liegt. Das durchschnittliche Vermögen dieses Accounts wäre demnach $\frac{3*10000 + 362*5000}{365}\approx5041$. Aus zeitgründen wurde auf diese Analyse vereinfacht.
+
+Nichtsdestotrotz kann gesagt werden, dass Accounts mit einem höheren durschnittlichen Vermögen eher für eine Kreditkarte geeignet sind. Besonders fällt auf, dass Accounts, welche eine Kreditkarte erwarben, immer ein geschätztes durchschnittliches Vermögen von mehr als 10'000 Kronen besassen.
+
+### Durchschnittliche Monatliche Vermögensveränderung 1998
+
+```{r echo = FALSE, warning = FALSE}
+balance_change_1998
+balance_change_1998_summary
+```
+
+Bei der durchschnittlichen monatlichen Vermögensveränderung 1998 ist ein klarer Unterschied zwischen Kreditkartenbesitzer und denjenigen, welche keine Besitzen klar ersichtlich bezüglich Median und Mittelwert.
+Daraus lässt sich schliessen, dass Accounts, welche über dem Mittelwert der monatlichen Vermögensveränderungen liegen, eher für eine Kreditkarten geeignet sind.
+
+Es gibt einige Ausreisser nach oben. Diese liegen jedoch gut im Bereich des möglichen, wenn man berücksichtigt, dass Kunden, welche noch nicht über dem Gesamtzeitraum des Timeframes bei der Bank sind, die Initialeinzahlung stärker gewichtet wird.
+
+### Durchschnittliche monatliche Geldabnahme 1998
+
+```{r echo = FALSE, warning = FALSE}
+flow_abfluss_1998
+flow_abfluss_1998_summary
+```
+
+Vergleicht man sämtliche statistischen Werte (bis auf Max.) von `card_type` 'classic' und 'gold' mit denjenigen, welche keine Kreditkarten besitzen, unterscheiden sich diese erheblich. Aber auch 'junior' weist eher höhere Geldabnahmen aus als nicht Kartenbesitzer. Dies schliesst auf eine höhere Kontoaktivität bezüglich Geldmenge. D.h. die Accounts, welche eine Kreditkarte besitzen, sind eher aktive, also eher keine Sparkonten.
+
+### Durchschnittliche monatliche Geldzuflüsse 1998
+
+```{r echo = FALSE, warning = FALSE}
+flow_zufluss_1998
+flow_zufluss_1998_summary
+```
+
+Auch hier unterscheiden sich MIttelwert und Median der durchschnittlichen monatlichen Geldzuflüsse der Kartenbesitzer erheblich gegenüber denjenigen, welche keine Karten besitzten. Es fällt zudem auf, dass alle, welche eine Kreditkarte erwarben, in den letzten 12 Monaten (oder weniger, wenn diese nicht seit 12 Monaten Kunden sind) keine inaktiven Accounts hatten. Sämtliche Accounts der Kreditkartenbesitzer haben vor dem Kartenerwerb Geldzuflüsse im vierstelligen Bereich oder höher zu verzeichnen.
+
+Berücksichtigt man die durchschnittlichen monatlichen Geldzu- und Abflüsse, schliesst sich daraus, dass aktivere Konten eher eine Kreditkarte erwarben. Die Höhe der Geldbeträge entsprechen zusätzlich den Kartentypen`card_type` 'junior' < 'classic' < 'gold'.
+
+
+
+```{r}
+cash_flow_development <- function(trans_frame, account_frame, disp_frame, cards_frame, start_date, ending_date){
+  #' @description this function provides the data-frame respecting to tha cash-flow of the accounts
+  #' in the time-frame
+  inc_offset_days <- (ending_date - start_date) + 1
+  frame_year <- format(ending_date, '%Y')
+  
+  account_cards <- account_frame %>%
+    dplyr::inner_join(disp_frame, by = 'account_id') %>%
+    dplyr::filter(disp_type == 'OWNER') %>%
+    dplyr::left_join(cards_frame, by = 'disp_id') %>%
+    dplyr::select(account_id, account_date, frequency, card_type, issued)
+  
+  #time frame (card-issued minus day_difference(start_date, ending_date)) until card-issued 
+  accounts_with_cards <- account_cards %>%
+    dplyr::filter(!is.na(card_type)) %>%
+    dplyr::filter(issued >= start_date & issued <= ending_date) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= issued & trans_date > (issued - inc_offset_days))
+  
+  #time-frame start_date until end_date
+  accounts_without_cards <- account_cards %>%
+    dplyr::filter(is.na(card_type)) %>%
+    dplyr::inner_join(trans_frame, by = 'account_id') %>%
+    dplyr::group_by(account_id) %>%
+    dplyr::filter(trans_date <= ending_date & trans_date >= start_date)
+  
+  acc_no_cards_path <- paste0(prefix, 'seq_data_no_cards', suffix)
+  acc_with_cards <- complete_seq_data(accounts_without_cards, acc_no_cards_path)
+  acc_with_cards_path <- paste0(prefix, 'seq_data_with_cards', suffix)
+  acc_without_cards <- complete_seq_data(accounts_with_cards, acc_with_cards_path)
+  
+  result_frame <- acc_with_cards %>%
+    dplyr::union(acc_without_cards) %>%
+    dplyr::group_by(account_id, trans_date) %>%
+    dplyr::summarise(mean_balance = mean(balance)) %>%
+    dplyr::inner_join(account_cards, by = 'account_id') %>%
+    dplyr::select(account_id, trans_date, mean_balance, card_type) %>%
+    dplyr::arrange(account_id, desc(trans_date)) %>%
+    dplyr::mutate(day_id = 366 - row_number()) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(card_type, day_id) %>%
+    dplyr::summarise(mean_balance = mean(mean_balance))
+
+  result_frame$card_type[is.na(result_frame$card_type)] <- 'no_card'
+  
+  balance_dev_plot <- ggplot2::ggplot(data = result_frame, aes(x = day_id, y = mean_balance, group = card_type, color = card_type)) +
+    ggplot2::geom_line() +
+    ggplot2::scale_fill_manual(values = cbPalette, name = card_t) +
+    ggplot2::ggtitle(paste0("Vermögensentwicklung eines Jahres Timeframe ", frame_year)) +
+    hrbrthemes::theme_ipsum() +
+    ggplot2::labs(x = 'Tag', y = 'Avg Vermögen')
+  
+  assign('balance_dev_plot', balance_dev_plot, envir = .GlobalEnv)
+}
+
+complete_seq_data <- function(df, df_path){
+  if (file.exists(df_path)){
+    return(readRDS(file = df_path))
+  }
+  df <- df %>%
+    dplyr::select(-frequency, -operation, -trans_k_symbol, -bank, -account) %>%
+    dplyr::mutate(trans_date = as.Date(trans_date)) %>%
+    dplyr::arrange(account_id, trans_date) %>%
+    dplyr::group_by(account_id) %>%
+    tidyr::complete(trans_date = seq.Date(min(trans_date), max(trans_date), by = 'day')) %>%
+    tidyr::fill(balance) %>%
+    dplyr::ungroup()
+  
+  saveRDS(df, file = df_path)
+  return(df)
+}
+
+cash_flow_development(trans_altered, account_altered, disp_altered, card_altered, beginning_date('1998'), ending_date('1998'))
+```
+
+
+### Vermögensentwicklung 1998
+
+```{r echo = FALSE, warning = FALSE, fig.width = 10}
+balance_dev_plot
+```
+
+Das Timeframe der Kreditkarten- und nicht-Kreditkartenbesitzer wurden wie bei den obigen Analysen gehandhabt.
+
+Auf der y-Achse ist der Mittelwert des Vermögens der entsprechenden Kartentypen `card_type` pro Tag ersichtlich. Auf der x-Achse ist das gewählte Timeframe von einem Jahr in Tagen ersichtlich. Hier ist somit folgendes ersichtlich:
+
+- Kreditkartenbesitzer: Klares Vermögenswachstum jedes Kartentyps `card_type` 'gold', 'classic' und 'junior' von etwa 10'000 Geldeinheiten innerhalb eines Jahres, bevor die Kreditkarte erworben wurde. Zusätzlich sind auch hier die Vermögensunterschiede zwischen den Kartentypen und den nicht Kreditkartenbesitzer gut ersichtlich.
+
+- Nicht Kreditkartenbesitzer: Auch hier ist ein Vermögenswachstum ersichtlich. Es hat jedoch nicht die gleiche intensität wie die der Kreditkartenbesitzer. Kunden, welche keine Kreditkarte erwarben, haben im Schnitt ein klar niedrigeres Vermögen, als solche, die am Ende der Zeitperiode eine Karte erwarben.
+
+Daraus kann geschlossen werden, dass Kunden, welche ein höheres Vermögenswachstum als der Durchschnitt der nicht-Kreditkartenbesitzer in den letzten Monaten aufweist, eher zur Zielgruppe für das Cross-Selling in betracht gezogen werden sollte. Zusätzlich kann gesagt werden, dass Kunden, welche ein höheres Vermögen als der Durchschnitt der nicht-Kreditkartenbesitzer besitzt, eher eine Kreditkarte erwarben. D.h., je höher das Vermögen in den letzten Monaten gegenüber dem Durchchnitt ist, desto eher sind diese für den Erwerb einer Kreditkarte offen. Bei ganz hohen Vermögen ist eher die 'gold' Karte zu empfehlen. Beide Aussagen decken sich mit der aus den obigen Analysen gewonnenen Erkentnisse.
+
 
 # Nächste Schritte
 

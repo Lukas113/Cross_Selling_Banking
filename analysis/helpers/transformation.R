@@ -9,6 +9,8 @@ alter_trans <- function(trans_frame){
   
   trans_frame <- trans_frame %>%
     dplyr::mutate(type = replace(type, type == 'VYBER', 'VYDAJ')) %>%
+    dplyr::mutate(type = replace(type, type == 'VYDAJ', 'abfluss')) %>%
+    dplyr::mutate(type = replace(type, type == 'PRIJEM', 'zufluss')) %>%
     dplyr::rename(trans_date = date,
            trans_amount = amount,
            trans_type = type,

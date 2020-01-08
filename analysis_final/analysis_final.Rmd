@@ -25,6 +25,7 @@ scale_color_cb <- scale_color_manual(values = cbPalette)
 
 Da die Datensätze relativ klein sind, erschien es sinnvoll, die Tables als R-Objekte lokal abzuspeichern, um diese danach lokal bearbeiten zu können. Die Datenobjekte werden vom entsprechenden Ordner geladen, falls das Objekt und der Ordner vorhanden ist. Falls diese nicht vorhanden sein sollten, werden sie neu von der Datenbank geholt und lokal ins Ordnerverzeichnis abgespeichert.
 Zusätzlich werden hier Datenfunktionen zur Verfügung gestellt, um Jahresanfänge und Jahresende komfortabel im entsprechenden Datenformat zur Verfügung stehen.
+
 ```{r echo = FALSE}
 prefix <- './objects/'
 suffix <- '.rds'
@@ -106,7 +107,7 @@ ggplot(data_count_by_gender, aes(x=gender, y=count, fill=gender)) +
 
 Die Verteilung der Frauen und Männer ist repräsentativ. Frauen machen 49.26 % und die Männer 50.74 % aller Kunden aus.
 
-## Analyse fehlende Werte in Tabelle "trans"
+## Analyse fehlende Werte in Tabelle trans
 
 In "trans" sind einige Werte in `k_symbol`, `bank`, `account` und `operation`: 'NA', ' '(leertaste), oder '0'. In diesem Abschnitt untersuche ich alle Vorkominisse dieser Unregelmässigkeiten, welche nicht in der Beschreibung erwähnt wurden, um die Daten besser zu verstehen und eventuell Unstimmigkeiten aufzudecken. Folgende Kombinationen von den erwähnten Werten in den Attributen sind aufgefallen:
 
@@ -187,7 +188,8 @@ trans_type_vyber <- function(trans_frame){
   ggplot2::ggplot(data = trans_frame) + 
     ggplot2::geom_bar(mapping = aes(x = type, fill = type)) +
     ggplot2::ggtitle('Anzahl Transaktionstypen') +
-  ggplot2::labs(x = 'Transaktionstyp', fill = 'Transaktionstyp')
+    ggplot2::labs(x = 'Transaktionstyp', fill = 'Transaktionstyp') +
+    scale_fill_cb
 }
 
 trans_type_vyber(trans)
@@ -247,13 +249,15 @@ visualize_orders_validation <- function(orders_frame, account_frame, trans_frame
   orders_labeled_plot <- ggplot2::ggplot(data = orders_labeled, aes(x = shown_in_trans, fill = orders_k_symbol)) + 
     ggplot2::geom_bar() +
     ggplot2::ggtitle('Orders, welche IN und NICHT IN Trans enthalten sind') +
-    ggplot2::labs(x = 'In Transaktionstabelle abgebildet', fill = 'k_symbol')
+    ggplot2::labs(x = 'In Transaktionstabelle abgebildet', fill = 'k_symbol') +
+    scale_fill_cb
   
   orders_not_in_trans <- validate_orders(orders_frame, account_frame, trans_frame)
   orders_not_in_trans_plot <- ggplot2::ggplot(data = orders_not_in_trans, aes(x = orders_k_symbol, fill = orders_k_symbol)) +
     ggplot2::geom_bar() +
     ggplot2::ggtitle('Verteilung der k_symbole, welche NICHT in Trans enthalten sind') +
-    ggplot2::labs(x = 'k_symbol', fill = 'k_symbol')
+    ggplot2::labs(x = 'k_symbol', fill = 'k_symbol') +
+    scale_fill_cb
   
   print(orders_labeled_plot)
   print(orders_not_in_trans_plot)
@@ -1256,11 +1260,82 @@ Auf der y-Achse ist der Mittelwert des Vermögens der entsprechenden Kartentypen
 
 Daraus kann geschlossen werden, dass Kunden, welche ein höheres Vermögenswachstum als der Durchschnitt der nicht-Kreditkartenbesitzer in den letzten Monaten aufweist, eher zur Zielgruppe für das Cross-Selling in betracht gezogen werden sollte. Zusätzlich kann gesagt werden, dass Kunden, welche ein höheres Vermögen als der Durchschnitt der nicht-Kreditkartenbesitzer besitzt, eher eine Kreditkarte erwarben. D.h., je höher das Vermögen in den letzten Monaten gegenüber dem Durchchnitt ist, desto eher sind diese für den Erwerb einer Kreditkarte offen. Bei ganz hohen Vermögen ist eher die 'gold' Karte zu empfehlen. Beide Aussagen decken sich mit der aus den obigen Analysen gewonnenen Erkentnisse.
 
+# Ergebnisse
+
+## Qualität der Daten
+
+Die Beschreibung des Datensatzes auf *https://sorry.vse.cz/~berka/challenge/PAST/index.html* gibt Anfangs einen guten Überblick über die Daten. Jedoch weist diese Beschreibung grobe Mängel in vielen Bereichen auf. Es wurden z.B. die Tabellen der Datenbank nicht korrekt beschriftet. Gemäss der Beschreibung heisst die Tabelle, auf der die Daueraufträge gespeichert sind, *order*, wobei die Tabelle als *orders* abgespeichert wurde. Auch die Beschreibung der Kardinalitäten der Entitäten entspricht nicht den gespeicherten Daten. Gemäss der Beschreibung besteht zwischen der Tabelle *client* und *account* eine 'm zu n' Verbindung, wobei daraus die Transformationstabelle *disp* hervorgeht. Die Datengrundlage zeigt jedoch, dass von *client* zu *account* eine 'n zu 1' Verbindung besteht, was die Tabelle *disp* eigentlich überflüssig macht. Es existieren gemäss der `client_id` auch keine Kunden, welche mehrere Accounts haben.
+
+Die Qualität der Daten lässt sehr zu Wünschen übrig. Sämtlich aufgestellt ID's diverser Tabellen folgen nicht dem natürlichen Zeitverlauf einer Datenbank, was eine genauere Sortierung und somit eine Analyse der Daten erschwert. Dies lässt Vermuten, dass wir entweder ein Ausschnitt einer Datenbank eines echten Datensatzes analysierten, oder der Datensatz zufällig generiert wurde, und die Datenbank in beiden Fällen unsorgfältig in die Datenbank eingefügt wurden. Die Kundenanalyse von *Anzahl Konten 1993 - 1998* zeigt, dass die Bank Anfangs 1993 noch keine Kunden hatte. Dies erhärtet den Verdacht, dass der Datensatz zufällig generiert worden ist.
+
+Überraschend war, dass die Daueraufträge in der Tabelle *orders* gemäss Entity Relationship Diagram (ERD) nicht datiert sind. Dabei wurde zufällig entdeckt, dass es einige Daueraufträge gibt, welche nie ausgeführt wurden. Alle Daueraufträge 'LEASING' wurden niemals ausgeführt.  Genaueres ist in *Orders ohne ausgeführte Transaktionen* zu finden.
+
+Die Transakitonstabelle *trans* hat beim Transaktionstyp `type` einen gemäss der Beschreibung nicht definierten Typ 'VYBER', wie in *Undefinierter Transaktionstyp* zu sehen ist. Dieser beschreibt einen Geldabfluss 'VYDAJ'. Des weiteren existieren viele gemäss der Beschreibung undefinierte Werte in den Attributen `account`, `bank`, `k_symbol`, was bei *Analyse fehlende Werte in Tabelle trans* zu sehen ist. Die Transaktionsbetärge in `amount` sind mathematisch gerundet, was bei grosser Anzahl an Transaktionen zu kleinen Abweichungen gegenüber dem effektiven Vermögen führt, was bei *Genauigkeitsüberprüfung der Einkommens- und Vermögensschätzung* ersichtlich ist. Die Tatsache, dass auf den Transaktionen kein Zeitstempel existiert, der genauer als auf den Tage genau ist und die IDs nicht dem natürlichen Zeitverlauf folgen, erschwert die Sortierung und somit die Analyse dieses Datensatzes. Es ist z.B. sehr schwierig, das Vermögen eines Accounts herauszulesen, wenn dieser am gleichen Tag meherere Transaktionen getätigt hat.
+
+## Allgemeine Datenanalyse
+
+Der grossteil der Kunden sind Ende 1998 gemäss *Altersverteilung der Kunden* zwischen 18 und 63 Jahre alt und haben gemäss *Vermögensverteilung der Bank* ein Vermögen zwischen 10'000 und 100'000 Kronen. Die Kunden sind regional relativ gesehen gut verteilt, wie in *Kundenverteilung nach Region* gut zu sehen ist. 
+
+**NOCH MEHR HINZUFÜGEN!!!!!!!!!!!!!**
+
+## Datenanalyse Kreditkarten
+
+In *Kartentypen* ist ersichtlich, dass Ende 1998 892 von 5369 Kunden eine Kreditkarte besitzen, wovon 659 'Classic', 145 'Junior' und 88 'Gold' Kreditkarten sind. Davon sind alle vom disp `tpye` 'OWNER', was bei *Verteilung der Kreditkarten pro Account und Disponent* beweist. D.h. es haben 892 von 4500 Accounts eine Kreditkarte. Aufgrund der eher geringen Anzahl an Junior und Goldkarten, haben wir bei der genaueren Betrachtung das Timeframe das Jahr 1998 gewählt, weil da mit Abstand am meisten Kreditkarten (etwa die Hälfte) herausgegeben wurde.
+
+Die folgenden Empfehlungen sind als univariat zu betrachten, und müssen in einer Schlussbeurteilung mit den jeweilig anderen Attributen verknüpft werden.
+
+Untersucht wurden Kreditkartenbesitzer und Kunden, welche keine Karte besitzen vorwiegend auf folgenden Attributen:
+
+- Alter
+
+- Vermögen
+
+- Vermögensveränderung
+
+- Servicenutzung
+
+### Alter
+
+Bei *Kundenalter Kreditkartenerwerber vs. nicht-Kreditkartenerwerber* ist ersichtlich, dass die meisten Kreditkartenbesitzer die Karte im Alter von 15 bis 60 Jahren erwarben. Wir vermuten, dass über 60 Jährige selten eine Kreditkarte erwarben, weil diese auch massiv weniger Vermögen besitzen, wie in *Korrelation Alter und Vermögen* zu sehen ist. In der Altersanalyse von *Kundenalter bei Ausstellung einer Kreditkarte* ist zu sehen, dass der Kreditkartentyp 'Junior' nur an junge Kunden vergeben wurde. Daher empfehlen wir folgende Intervalle für die Bewerbung einer neuen Karte:
+
+- Unter 20 Jahren eine 'Junior' Karte
+
+- 20 bis 60 Jahre eine 'Classic' oder 'Gold' Karte
+
+### Vermögen
+
+Die Analyse nach den jeweiligen Kartentypen bei *Vermögen zum Zeitpunkt der Kartenausstellung* zeigt, dass das Vermögen derjenigen Kunden, welche eine Kreditkarte des Typs 'Gold' erwarben, vor dem Zeitpunkt des Kartenerwerbs ein höheres Vermögen als 'Classic', und diese wiederum ein höheres Vermögen als 'Junior' besassen.
+
+Betrachtet man Kreditkartenbesitzer und nicht Besitzer im Timeframe 1998 (siehe *Vermögen Total 1998*), ist klar ersichtlich, dass Kreditkartenerwerber::innen ein überdurchschnittlich hohes Vermögen vor dem Zeitpunkt des Kartenerwerbes besassen. Dies ist auch in der *Vermögensentwicklung 1998* sehr gut ersichtlich. Aus diesem Grund empfehlen wir folgendes (Intervalle sind nicht als verbindlich zu betrachten):
+
+- Ist das Vermögen der nicht Kreditkartenbesitzer überdurchschnittlich hoch, empfehlen wir, diese zu bewerben
+
+- Kunden mit einem Vermögen von ca.  40'000 -  65'000 sind für 'Classic' oder 'Junior' bewerbbar
+
+- Kunden mit mehr als 65'000 Vermögen sind für 'Gold' Karten bewerbbar
+
+### Vermögensveränderung
+
+Wie in *Vermögensentwicklung 1998* zu sehen ist, haben die Kunden, welche eine Kreditkarte erwarben, im Durchschnitt ein Vermögenswachstum von etwa 10'000 innerhalb eines Jahres vor dem Kartenerwerb erlebt. Dies ist für alle drei Kreditkartentypen der Fall. Nicht-Kreditkartenerwerber haben im Schnitt zwar auch ein Vermögenswachstum innerhalb eines Jahres, jedoch nicht in der gleichen Höhe wie die Kreditkartenerwerber. Dies deckt sich mit der in *Durchschnittliche Monatliche Vermögensveränderung 1998* getätigten Analyse. Bei der Höhe der Vermögenszunahme sind zwischen den Kreditkartenerwerber keine signifikanten Unterschiede feststellbar, obwohl z.B. 'Gold' Erwerber ein durchschnittliches höher Vermögenszuwachs in den letzten Monaten vor dem Erwerb zu verzeichneten. 
+
+Zusätzlich ist auch feststellbar, dass Kunden, welche eine Kreditkarte erwarben, eine höhere Kontoaktivität in den letzten Monaten vor dem Kartenerwerb aufwiesen. Dies ist sehr gut in *Durchschnittliche monatliche Geldzuflüsse 1998* und  *Durchschnittliche monatliche Geldabnahme 1998* ersichtlich.
+
+Wir empfehlen die Bewerbung folgender Kunden:
+
+- Überdurchschnittliche Vermögenszuwachs innerhalb der letzten Monate gemessen an den nicht-Kreditkartenbesitzer
+
+- Überdurchschnittliche Kontoaktivität gemäss Betragshöhe gemessen an den nicht-Kreditkartenbesitzer
+
+### Servicenutzung
+
+**NOCH WAS EINFÜGEN!!!!!!!!!!!!!**
 
 # Nächste Schritte
 
 Auf Basis dieser Analyse, lassen sich die weiterführende Schritte planen. Da aus der Daten hervorgegangen ist, dass sich die Kreditkarte am besten eignen um Querverkäufe zu tätigen, empfehlen wir folgende nächste Schritte:
 - Erstellung eines Modelles um die Unterschiede zwischen Karteninhaber und Nicht-Karteninhaber besser zu unterscheiden, in Bezug auf Vermögen und Vermögensentwicklung.
+
+**NOCH MEHR SCHREIBEN!!!!**
 
 ```{r echo=FALSE}
 disconnect()

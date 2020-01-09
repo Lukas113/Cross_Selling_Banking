@@ -1329,7 +1329,9 @@ Wir empfehlen die Bewerbung folgender Kunden:
 
 ### Servicenutzung
 
-**NOCH WAS EINFÜGEN!!!!!!!!!!!!!**
+Bei der Servicenutzung ging es darum anhand eines angepassten konsolidierten Datensatzes herauszufinden, welche Kunden(nur Owner) über welche Service verfügten, bevor sie die Karte erworben haben. 
+Das Timeframe wurde hierbei auf alle Kunden gesetzt, die im Jahre 1998 eine Karte erworben haben und dann relativ zum Datum des Kartenerwebs die Analysen getätigt. Dabei wurden folgende Services untersucht: Kredite(Loans) und Daueraufträge(Permanent Orders). Bei den Krediten hatten 90 Kunden, rund etwa 1/5 aller Kunden vor der Ausstellung der Kreditkarte bereits einen Kredit, wobei die meisten diesen in einem Zeitraum von ca. einem Jahr vor Ausstellung der Karte erwarben. 
+Bei der Untersuchung der Daueraufträge sieht es nicht ganz unähnlich aus, wobei jedoch die Anzahl der vorhandenen Daueraufträge vor Ausstellung der Karte drastisch grösser ist. die Anzahl der Kunden besteht aus 337 von 450 Kunden. Das ist eine Menge. Die Leute mit einem Dauerauftrag initierten diesen etwa 1-2 Jahre vor der Kreditkarte
 
 # Nächste Schritte
 

@@ -7,6 +7,9 @@ output:
   html_document:
     df_print: paged
     css: style.css
+    toc: true
+    toc_depth: 2
+    toc_float: true
   pdf_document: default
 ---
 
